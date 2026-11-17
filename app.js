@@ -2,12 +2,16 @@
 
 /* =========================================================
    Meine Spiele – Bibliothek und Wunschliste
-   Alle Daten liegen im Browser (localStorage).
+   Daten liegen im Browser (localStorage) und werden – falls
+   eingerichtet – über Supabase zwischen Geräten abgeglichen.
    ========================================================= */
 
+const APP_VERSION = '2.0.0';
 const DATEN_KEY = 'spieleliste.daten.v1';
 const ANSICHT_KEY = 'spieleliste.ansicht.v1';
+const SYNC_KEY = 'spieleliste.sync.v1';
 const STARTDATEN_URL = 'spiele.json';
+const URALT = '1970-01-01T00:00:00.000Z';
 
 const BEREICHE = {
   'Story-Wunsch': { liste: 'bibliothek', titel: 'Passt zu deinem Wunsch', text: 'Spannende Story, linear, nicht zu schwer' },
@@ -23,15 +27,19 @@ const STATUS_TEXT = {
   offen: 'Offen', angefangen: 'Angefangen', durchgespielt: 'Durchgespielt',
   abgebrochen: 'Abgebrochen', gekauft: 'Gekauft',
 };
+const STATUS_RANG = { angefangen: 0, offen: 1, durchgespielt: 2, abgebrochen: 3 };
 const ERLEDIGT = new Set(['durchgespielt', 'abgebrochen']);
 const STANDARD_ZIEL_NACH_KAUF = 'Top: genau dein Ding';
 
-let daten = null;            // { version, kategorien, spiele, geaendert, letzterExport }
+let daten = null;
 let ansicht = {
   reiter: 'bibliothek', status: '', kategorie: '', erledigteAus: false,
   zu: {}, wuerfelAuswahl: 'bereich:Story-Wunsch', wuerfelAngefangen: false,
+  sortierung: 'eigene', kompakt: false,
 };
 let suchtext = '';
+let reihenfolgeModus = false;
+const aufgeklappt = new Set();   // Karten, die in der Kompaktansicht geöffnet sind
 
 const $ = (sel, el = document) => el.querySelector(sel);
 const $$ = (sel, el = document) => [...el.querySelectorAll(sel)];
@@ -40,6 +48,13 @@ const $$ = (sel, el = document) => [...el.querySelectorAll(sel)];
 
 function esc(text) {
   return String(text ?? '').replace(/[&<>"']/g, (z) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[z]));
+}
+
+function jetzt() { return new Date().toISOString(); }
+
+function zeitpunkt(wert, ersatz = URALT) {
+  const d = new Date(wert);
+  return wert && !isNaN(d) ? d.toISOString() : ersatz;
 }
 
 function neueId() {
@@ -51,11 +66,38 @@ function fuerSuche(text) {
   return String(text).toLocaleLowerCase('de').normalize('NFD').replace(/[̀-ͯ]/g, '');
 }
 
+// Vergleichsschlüssel für Spielnamen (für Sync-Abgleich und Steam)
+function namensSchluessel(text) {
+  return fuerSuche(text).replace(/&/g, 'and').replace(/[^a-z0-9]+/g, '');
+}
+
 function datumText(iso) {
   if (!iso) return 'noch nie';
   const d = new Date(iso);
   if (isNaN(d)) return 'unbekannt';
   return d.toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+// "105 min", "4,4 h", "8 h", "1.234,5 h" → Minuten
+function spielzeitMinuten(text) {
+  if (!text) return 0;
+  const t = String(text).toLowerCase().replace(/\s+/g, ' ').trim();
+  const m = t.match(/([\d.,]+)\s*(min|h|std)/);
+  if (!m) return 0;
+  const zahl = parseFloat(m[1].replace(/\.(?=\d{3}\b)/g, '').replace(',', '.'));
+  if (isNaN(zahl)) return 0;
+  return m[2] === 'min' ? Math.round(zahl) : Math.round(zahl * 60);
+}
+
+function spielzeitText(minuten) {
+  if (!minuten) return null;
+  if (minuten < 60) return `${minuten} min`;
+  const h = minuten / 60;
+  return `${h.toLocaleString('de-DE', { maximumFractionDigits: 1 })} h`;
+}
+
+function stundenText(minuten) {
+  return `${Math.round(minuten / 60).toLocaleString('de-DE')} Std.`;
 }
 
 function kategorieVon(name) {
@@ -66,39 +108,61 @@ function listeVonBereich(bereich) {
   return BEREICHE[bereich]?.liste ?? null;
 }
 
+function steamLink(s) {
+  return s.steamAppId
+    ? `https://store.steampowered.com/app/${s.steamAppId}/`
+    : `https://store.steampowered.com/search/?term=${encodeURIComponent(s.name.replace(/\(.*?\)/g, '').trim())}`;
+}
+
+function naechsteReihenfolge(kategorie) {
+  const werte = daten.spiele.filter((s) => s.kategorie === kategorie).map((s) => s.reihenfolge);
+  return werte.length ? Math.max(...werte) + 1 : 0;
+}
+
 /* ---------- Daten laden, prüfen, speichern ---------- */
 
-// Wandelt die Datei-Formate (Original-spiele.json oder Export dieser App) in das interne Format um.
-function normalisieren(roh) {
+// Wandelt alle Datei-Formate (Original-spiele.json, alter oder neuer Export) ins interne Format um.
+function normalisieren(roh, { startdaten = false } = {}) {
   const spieleRoh = Array.isArray(roh) ? roh : roh?.spiele;
   if (!Array.isArray(spieleRoh)) throw new Error('Die Datei enthält keine Spieleliste.');
+  const dokumentZeit = zeitpunkt(roh?.geaendert);
 
   const kategorien = [];
   const katNamen = new Map();
   const katHinzu = (k) => {
-    if (!k?.name || katNamen.has(k.name)) return;
+    if (!k?.name || katNamen.has(String(k.name))) return;
     let bereich = k.bereich;
     if (!BEREICHE[bereich]) bereich = k.liste === 'wunschliste' ? 'Wunschliste' : 'Für andere Laune';
     const kat = { name: String(k.name), info: String(k.info ?? k.kategorieInfo ?? ''), bereich, liste: listeVonBereich(bereich) };
     katNamen.set(kat.name, kat);
     kategorien.push(kat);
   };
-
   if (!Array.isArray(roh) && Array.isArray(roh.kategorien)) roh.kategorien.forEach(katHinzu);
 
   const spiele = [];
   const ids = new Set();
-  for (const s of spieleRoh) {
-    if (!s || typeof s.name !== 'string' || !s.name.trim()) continue;
+  spieleRoh.forEach((s, index) => {
+    if (!s || typeof s.name !== 'string' || !s.name.trim()) return;
     const katName = String(s.kategorie || (s.liste === 'wunschliste' ? 'Wunschliste' : 'Ohne Kategorie'));
     if (!katNamen.has(katName)) katHinzu({ name: katName, info: s.kategorieInfo, bereich: s.bereich, liste: s.liste });
     const kat = katNamen.get(katName);
+
     let status = String(s.status || 'offen');
     if (kat.liste === 'wunschliste' || !STATUS_BIBLIOTHEK.includes(status)) status = 'offen';
-    let id = s.id ? String(s.id) : neueId();
-    if (ids.has(id)) id = neueId();
+
+    // Startdaten bekommen feste IDs, damit alle Geräte dieselben Spiele erkennen
+    let id = s.id ? String(s.id) : (startdaten ? 'st-' + namensSchluessel(s.name) : neueId());
+    while (ids.has(id)) id = startdaten ? id + '-2' : neueId();
     ids.add(id);
+
     const bewertung = Math.max(0, Math.min(5, Math.round(Number(s.bewertung) || 0)));
+    const notiz = String(s.notiz ?? '');
+    const appId = parseInt(s.steamAppId, 10);
+    // Ältere Daten haben keinen Änderungszeitpunkt pro Spiel:
+    // Spiele mit eigenen Angaben gelten als zuletzt mit dem Dokument geändert.
+    const benutzt = status !== 'offen' || notiz || bewertung;
+    const geaendert = zeitpunkt(s.geaendert, benutzt ? dokumentZeit : URALT);
+
     spiele.push({
       id,
       name: s.name.trim(),
@@ -107,25 +171,60 @@ function normalisieren(roh) {
       liste: kat.liste,
       kategorie: kat.name,
       status,
-      notiz: String(s.notiz ?? ''),
+      notiz,
       bewertung,
+      reihenfolge: Number.isFinite(Number(s.reihenfolge)) && s.reihenfolge !== null && s.reihenfolge !== '' ? Number(s.reihenfolge) : index,
+      steamAppId: appId > 0 ? appId : null,
+      durchgespieltAm: status === 'durchgespielt' ? (s.durchgespieltAm ? zeitpunkt(s.durchgespieltAm) : null) : null,
+      geaendert,
     });
-  }
+  });
   if (!spiele.length) throw new Error('In der Datei wurden keine Spiele gefunden.');
 
+  const geloescht = {};
+  if (roh && typeof roh.geloescht === 'object' && !Array.isArray(roh.geloescht)) {
+    for (const [id, zeit] of Object.entries(roh.geloescht)) geloescht[id] = zeitpunkt(zeit);
+  }
+
   return {
-    version: 1,
+    version: 2,
     kategorien,
     spiele,
-    geaendert: roh.geaendert ?? null,
-    letzterExport: roh.letzterExport ?? null,
+    geloescht,
+    geaendert: roh?.geaendert ?? null,
+    letzterExport: roh?.letzterExport ?? null,
+    letzterSync: roh?.letzterSync ?? null,
   };
+}
+
+// JSON mit fester Reihenfolge (Schlüssel sortiert) – zum Vergleichen von Datenständen
+function stabil(wert) {
+  if (Array.isArray(wert)) return '[' + wert.map(stabil).join(',') + ']';
+  if (wert && typeof wert === 'object') {
+    return '{' + Object.keys(wert).sort().filter((k) => wert[k] !== undefined)
+      .map((k) => JSON.stringify(k) + ':' + stabil(wert[k])).join(',') + '}';
+  }
+  return JSON.stringify(wert ?? null);
+}
+
+// Vergleichsform: unabhängig von der Reihenfolge auf dem jeweiligen Gerät
+function vergleichsText(d) {
+  return stabil({
+    kategorien: [...d.kategorien].sort((a, b) => a.name.localeCompare(b.name)),
+    spiele: [...d.spiele].sort((a, b) => a.id.localeCompare(b.id)),
+    geloescht: d.geloescht,
+  });
+}
+
+// Der Teil der Daten, der synchronisiert und exportiert wird
+function inhalt(d) {
+  return { app: 'spieleliste', version: 2, kategorien: d.kategorien, spiele: d.spiele, geloescht: d.geloescht };
 }
 
 async function startdatenLaden() {
   const antwort = await fetch(STARTDATEN_URL, { cache: 'no-cache' });
   if (!antwort.ok) throw new Error('Startdaten konnten nicht geladen werden.');
-  return normalisieren(await antwort.json());
+  return normalisieren(await antwort.json(), { startdaten: true });
 }
 
 async function laden() {
@@ -137,31 +236,95 @@ async function laden() {
   }
   if (!daten) {
     daten = await startdatenLaden();
-    speichern();
+    lokalSchreiben();
   }
   let a = null;
   try { a = JSON.parse(localStorage.getItem(ANSICHT_KEY) || 'null'); } catch { /* egal */ }
   if (a && typeof a === 'object') {
     ansicht = { ...ansicht, ...a };
   } else {
-    // Beim ersten Start: „Für andere Laune“ zugeklappt, damit der Story-Wunsch oben im Fokus steht
+    // Beim ersten Start: „Für andere Laune“ zugeklappt, damit der Story-Wunsch im Fokus steht
     for (const k of daten.kategorien) if (k.bereich === 'Für andere Laune') ansicht.zu[k.name] = true;
   }
 }
 
-function speichern() {
-  daten.geaendert = new Date().toISOString();
+function lokalSchreiben() {
   try {
     localStorage.setItem(DATEN_KEY, JSON.stringify(daten));
   } catch (e) {
     zeigeHinweis('Speichern fehlgeschlagen – bitte Daten exportieren!');
     console.error(e);
   }
+}
+
+// Nach jeder Änderung durch dich aufrufen: speichert und stößt den Sync an
+function speichern() {
+  daten.geaendert = jetzt();
+  lokalSchreiben();
   if (navigator.storage?.persist) navigator.storage.persist().catch(() => {});
+  syncPlanen();
+}
+
+function beruehren(s) {
+  s.geaendert = jetzt();
 }
 
 function ansichtMerken() {
   try { localStorage.setItem(ANSICHT_KEY, JSON.stringify(ansicht)); } catch { /* egal */ }
+}
+
+/* ---------- Zusammenführen (für Sync) ---------- */
+
+// Führt zwei Datenstände Spiel für Spiel zusammen: Die jeweils neuere Änderung gewinnt.
+function zusammenfuehren(lokal, fern) {
+  const geloescht = { ...fern.geloescht };
+  for (const [id, zeit] of Object.entries(lokal.geloescht)) {
+    if (!geloescht[id] || zeit > geloescht[id]) geloescht[id] = zeit;
+  }
+
+  // Gleiches Spiel mit unterschiedlicher ID (z. B. auf zwei Geräten getrennt angelegt) zusammenlegen
+  const fernIds = new Set(fern.spiele.map((s) => s.id));
+  const lokalIds = new Set(lokal.spiele.map((s) => s.id));
+  const fernNachName = new Map();
+  for (const s of fern.spiele) {
+    if (!lokalIds.has(s.id)) fernNachName.set(namensSchluessel(s.name), s.id);
+  }
+  const lokaleSpiele = lokal.spiele.map((s) => {
+    if (fernIds.has(s.id)) return s;
+    const andereId = fernNachName.get(namensSchluessel(s.name));
+    if (andereId) { fernNachName.delete(namensSchluessel(s.name)); return { ...s, id: andereId }; }
+    // Spiel aus den Startdaten, das auf einem anderen Gerät gelöscht wurde
+    const startId = 'st-' + namensSchluessel(s.name);
+    if (s.id !== startId && geloescht[startId] && !lokalIds.has(startId)) return { ...s, id: startId };
+    return s;
+  });
+
+  const nachId = new Map();
+  const nimm = (s) => {
+    const vorhanden = nachId.get(s.id);
+    if (!vorhanden || s.geaendert > vorhanden.geaendert ||
+        (s.geaendert === vorhanden.geaendert && stabil(s) > stabil(vorhanden))) {
+      nachId.set(s.id, s);
+    }
+  };
+  fern.spiele.forEach(nimm);
+  lokaleSpiele.forEach(nimm);
+
+  const spiele = [...nachId.values()].filter((s) => !(geloescht[s.id] && geloescht[s.id] >= s.geaendert));
+  // Reihenfolge der Liste: lokale Reihenfolge, neue Spiele hinten
+  const lokalPos = new Map(lokaleSpiele.map((s, i) => [s.id, i]));
+  spiele.sort((a, b) => (lokalPos.get(a.id) ?? 1e9) - (lokalPos.get(b.id) ?? 1e9));
+
+  const kategorien = [...lokal.kategorien];
+  for (const k of fern.kategorien) if (!kategorien.some((x) => x.name === k.name)) kategorien.push(k);
+  for (const s of spiele) {
+    if (!kategorien.some((k) => k.name === s.kategorie)) {
+      const bereich = s.liste === 'wunschliste' ? 'Wunschliste' : 'Für andere Laune';
+      kategorien.push({ name: s.kategorie, info: '', bereich, liste: s.liste });
+    }
+  }
+
+  return { ...lokal, kategorien, spiele, geloescht };
 }
 
 /* ---------- Rückgängig ---------- */
@@ -174,8 +337,21 @@ function sicherungMachen() {
 
 function rueckgaengig() {
   if (!rueckgaengigStand) return;
-  daten = JSON.parse(rueckgaengigStand);
+  const alt = JSON.parse(rueckgaengigStand);
   rueckgaengigStand = null;
+  const t = jetzt();
+  // Alles, was sich seitdem geändert hat, als „jetzt geändert“ markieren,
+  // damit der Sync den alten Stand nicht wieder überschreibt.
+  const aktuell = new Map(daten.spiele.map((s) => [s.id, stabil(s)]));
+  for (const s of alt.spiele) {
+    if (aktuell.get(s.id) !== stabil(s)) { s.geaendert = t; delete alt.geloescht[s.id]; }
+  }
+  const altIds = new Set(alt.spiele.map((s) => s.id));
+  for (const s of daten.spiele) if (!altIds.has(s.id)) alt.geloescht[s.id] = t;
+  for (const k of daten.kategorien) if (!alt.kategorien.some((x) => x.name === k.name)) alt.kategorien.push(k);
+  alt.letzterExport = daten.letzterExport;
+  alt.letzterSync = daten.letzterSync;
+  daten = alt;
   speichern();
   rendern();
   zeigeHinweis('Rückgängig gemacht');
@@ -184,16 +360,21 @@ function rueckgaengig() {
 /* ---------- Hinweis-Leiste ---------- */
 
 let hinweisTimer = null;
-function zeigeHinweis(text, mitRueckgaengig = false) {
+let hinweisAktion = null;
+function zeigeHinweis(text, optionen = {}) {
+  if (optionen === true) optionen = { knopf: 'Rückgängig', aktion: rueckgaengig };
+  const { knopf = null, aktion = null, dauer = knopf ? 6000 : 2600 } = optionen;
   const t = $('#toast');
   $('#toast-text').textContent = text;
-  $('#toast-knopf').hidden = !mitRueckgaengig;
+  $('#toast-knopf').hidden = !knopf;
+  $('#toast-knopf').textContent = knopf ?? '';
+  hinweisAktion = aktion;
   t.hidden = false;
   clearTimeout(hinweisTimer);
-  hinweisTimer = setTimeout(() => { t.hidden = true; }, mitRueckgaengig ? 6000 : 2600);
+  if (dauer) hinweisTimer = setTimeout(() => { t.hidden = true; }, dauer);
 }
 
-/* ---------- Filter ---------- */
+/* ---------- Filter und Sortierung ---------- */
 
 function filterAktiv() {
   return Boolean(suchtext || ansicht.kategorie ||
@@ -211,6 +392,18 @@ function passtZumFilter(s) {
   return true;
 }
 
+function sortieren(spiele) {
+  const nachReihe = (a, b) => a.reihenfolge - b.reihenfolge;
+  const kopie = [...spiele];
+  switch (reihenfolgeModus ? 'eigene' : ansicht.sortierung) {
+    case 'status': return kopie.sort((a, b) => (STATUS_RANG[a.status] ?? 9) - (STATUS_RANG[b.status] ?? 9) || nachReihe(a, b));
+    case 'bewertung': return kopie.sort((a, b) => b.bewertung - a.bewertung || nachReihe(a, b));
+    case 'spielzeit': return kopie.sort((a, b) => spielzeitMinuten(b.spielzeit) - spielzeitMinuten(a.spielzeit) || nachReihe(a, b));
+    case 'name': return kopie.sort((a, b) => a.name.localeCompare(b.name, 'de'));
+    default: return kopie.sort(nachReihe);
+  }
+}
+
 /* ---------- Darstellung ---------- */
 
 const PFEIL = '<svg class="kat-pfeil" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.4 8.6 12 13.2l4.6-4.6L18 10l-6 6-6-6z"/></svg>';
@@ -224,63 +417,107 @@ function sterneHtml(wert, mitAktion = true) {
   return html;
 }
 
-function spielHtml(s) {
-  const aktion = s.liste === 'bibliothek'
-    ? `<select class="status-wahl st-${s.status}" data-aktion="status" aria-label="Status von ${esc(s.name)}">
-        ${STATUS_BIBLIOTHEK.map((st) => `<option value="${st}"${st === s.status ? ' selected' : ''}>${STATUS_TEXT[st]}</option>`).join('')}
-       </select>`
-    : `<button class="klein-knopf haupt" data-aktion="gekauft">✓ Gekauft</button>`;
+function statusAuswahlHtml(s) {
+  return `<select class="status-wahl st-${s.status}" data-aktion="status" aria-label="Status von ${esc(s.name)}">
+    ${STATUS_BIBLIOTHEK.map((st) => `<option value="${st}"${st === s.status ? ' selected' : ''}>${STATUS_TEXT[st]}</option>`).join('')}
+  </select>`;
+}
+
+function hauptAktionHtml(s) {
+  return s.liste === 'bibliothek'
+    ? statusAuswahlHtml(s)
+    : '<button class="klein-knopf haupt" data-aktion="gekauft">✓ Gekauft</button>';
+}
+
+function spielHtml(s, kontext = {}) {
+  // Kompaktansicht: eine Zeile, Antippen des Namens klappt die Karte auf
+  if (ansicht.kompakt && !reihenfolgeModus && !aufgeklappt.has(s.id)) {
+    return `
+      <article class="spiel kompakt" data-id="${esc(s.id)}">
+        <button class="spiel-name-knopf" data-aktion="aufklappen" aria-expanded="false">
+          <span>${esc(s.name)}</span>${s.bewertung ? `<span class="mini-stern" aria-label="${s.bewertung} Sterne">★${s.bewertung}</span>` : ''}
+        </button>
+        ${hauptAktionHtml(s)}
+      </article>`;
+  }
+
+  let unten;
+  if (reihenfolgeModus) {
+    unten = `<span class="leise klein">${kontext.position + 1}. von ${kontext.anzahl}</span>
+      <span class="platz"></span>
+      <span class="reihen-knoepfe">
+        <button class="klein-knopf" data-aktion="hoch" aria-label="${esc(s.name)} nach oben"${kontext.position === 0 ? ' disabled' : ''}>▲</button>
+        <button class="klein-knopf" data-aktion="runter" aria-label="${esc(s.name)} nach unten"${kontext.position === kontext.anzahl - 1 ? ' disabled' : ''}>▼</button>
+      </span>`;
+  } else {
+    unten = `${hauptAktionHtml(s)}
+      <span class="platz"></span>
+      <span class="sterne" role="group" aria-label="Bewertung">${sterneHtml(s.bewertung)}</span>`;
+  }
+
+  const steamText = s.liste === 'wunschliste' ? 'Preis auf Steam' : 'Steam';
   return `
     <article class="spiel" data-id="${esc(s.id)}">
       <div class="spiel-kopf">
         <div class="spiel-name">${esc(s.name)}</div>
+        <a class="klein-knopf" href="${esc(steamLink(s))}" target="_blank" rel="noopener" aria-label="${esc(s.name)} auf Steam öffnen">${steamText} ↗</a>
         <button class="klein-knopf" data-aktion="bearbeiten" aria-label="${esc(s.name)} bearbeiten">${STIFT}</button>
       </div>
       ${s.beschreibung ? `<p class="spiel-beschr">${esc(s.beschreibung)}</p>` : ''}
       ${s.spielzeit ? `<div class="spiel-meta"><span>⏱ Bisher gespielt: ${esc(s.spielzeit)}</span></div>` : ''}
       ${s.notiz ? `<div class="spiel-notiz">${esc(s.notiz)}</div>` : ''}
-      <div class="spiel-aktionen">
-        ${aktion}
-        <span class="platz"></span>
-        <span class="sterne" role="group" aria-label="Bewertung">${sterneHtml(s.bewertung)}</span>
-      </div>
+      <div class="spiel-aktionen">${unten}</div>
+      ${ansicht.kompakt && !reihenfolgeModus ? '<button class="link-knopf zuklappen" data-aktion="zuklappen">▲ Weniger anzeigen</button>' : ''}
     </article>`;
+}
+
+function fortschrittHtml(kat, alleSpiele) {
+  const gesamt = alleSpiele.length;
+  if (kat.liste !== 'bibliothek') {
+    return `<div class="fortschritt"><span>${gesamt} ${gesamt === 1 ? 'Spiel' : 'Spiele'}</span></div>`;
+  }
+  const durch = alleSpiele.filter((s) => s.status === 'durchgespielt').length;
+  const ab = alleSpiele.filter((s) => s.status === 'abgebrochen').length;
+  const prozent = gesamt ? Math.round((durch / gesamt) * 100) : 0;
+  return `<div class="fortschritt"><span>${durch}/${gesamt} durchgespielt${ab ? ` · ${ab} abgebrochen` : ''}</span>
+    <span class="balken" aria-hidden="true"><i style="width:${prozent}%"></i></span></div>`;
 }
 
 function kategorieHtml(kat, alleSpiele, gefiltert, offenErzwingen) {
   const gesamt = alleSpiele.length;
-  let fortschritt;
-  if (kat.liste === 'bibliothek') {
-    const durch = alleSpiele.filter((s) => s.status === 'durchgespielt').length;
-    const ab = alleSpiele.filter((s) => s.status === 'abgebrochen').length;
-    const prozent = gesamt ? Math.round((durch / gesamt) * 100) : 0;
-    fortschritt = `<div class="fortschritt"><span>${durch}/${gesamt} durchgespielt${ab ? ` · ${ab} abgebrochen` : ''}</span>
-      <span class="balken" aria-hidden="true"><i style="width:${prozent}%"></i></span></div>`;
-  } else {
-    fortschritt = `<div class="fortschritt"><span>${gesamt} ${gesamt === 1 ? 'Spiel' : 'Spiele'}</span></div>`;
-  }
-  const offen = offenErzwingen || !ansicht.zu[kat.name];
+  const offen = offenErzwingen || reihenfolgeModus || !ansicht.zu[kat.name];
+  const sortiert = sortieren(gefiltert);
   return `
     <details class="kategorie" data-kategorie="${esc(kat.name)}"${offen ? ' open' : ''}>
       <summary>
         <span class="kat-name">${esc(kat.name)}${gefiltert.length !== gesamt ? ` <span class="zahl">(${gefiltert.length} von ${gesamt})</span>` : ''}</span>
         ${kat.info ? `<span class="kat-info">${esc(kat.info)}</span>` : ''}
         ${PFEIL}
-        ${fortschritt}
+        ${fortschrittHtml(kat, alleSpiele)}
       </summary>
-      <div class="kat-spiele">${gefiltert.map(spielHtml).join('')}</div>
+      <div class="kat-spiele">${sortiert.map((s, i) => spielHtml(s, { position: i, anzahl: sortiert.length })).join('')}</div>
     </details>`;
 }
 
+function geradeDabeiHtml() {
+  const dabei = daten.spiele.filter((s) => s.liste === 'bibliothek' && s.status === 'angefangen')
+    .sort((a, b) => b.geaendert.localeCompare(a.geaendert));
+  if (!dabei.length) return '';
+  return `
+    <div class="bereich"><h2>Gerade dabei</h2><p>Deine angefangenen Spiele</p></div>
+    <div class="kategorie dabei">
+      <div class="kat-spiele">${dabei.map((s) => spielHtml(s)).join('')}</div>
+    </div>`;
+}
+
 function rendern() {
-  // Reiter
   for (const knopf of $$('.reiter-knopf')) {
     knopf.setAttribute('aria-selected', String(knopf.dataset.reiter === ansicht.reiter));
   }
   $('#zahl-bibliothek').textContent = daten.spiele.filter((s) => s.liste === 'bibliothek').length;
   $('#zahl-wunschliste').textContent = daten.spiele.filter((s) => s.liste === 'wunschliste').length;
 
-  // Filter-Felder
+  // Werkzeugleiste
   const istBib = ansicht.reiter === 'bibliothek';
   const statusFeld = $('#filter-status');
   statusFeld.hidden = !istBib;
@@ -290,7 +527,12 @@ function rendern() {
   $('.filter').classList.toggle('einzeln', !istBib);
   $('#erledigte-zeile').hidden = !istBib;
   $('#erledigte-aus').checked = ansicht.erledigteAus;
-  $('#wuerfel-knopf').hidden = !istBib;
+  $('#wuerfel-knopf').hidden = !istBib || reihenfolgeModus;
+  $('#sortierung').value = ansicht.sortierung;
+  $('#sortierung').disabled = reihenfolgeModus;
+  $('#kompakt-knopf').setAttribute('aria-pressed', String(ansicht.kompakt));
+  $('#reihenfolge-knopf').setAttribute('aria-pressed', String(reihenfolgeModus));
+  $('#reihenfolge-hinweis').hidden = !reihenfolgeModus;
 
   const katFeld = $('#filter-kategorie');
   const katDesReiters = daten.kategorien.filter((k) => k.liste === ansicht.reiter);
@@ -307,6 +549,7 @@ function rendern() {
   const aktiv = filterAktiv();
   let html = '';
   let treffer = 0;
+  if (istBib && !aktiv && !reihenfolgeModus) html += geradeDabeiHtml();
   for (const bereich of BEREICHE_JE_LISTE[ansicht.reiter]) {
     let teil = '';
     for (const kat of daten.kategorien.filter((k) => k.bereich === bereich)) {
@@ -318,8 +561,7 @@ function rendern() {
     }
     if (teil) {
       const b = BEREICHE[bereich];
-      const kopf = ansicht.reiter === 'bibliothek' ? `<div class="bereich"><h2>${esc(b.titel)}</h2><p>${esc(b.text)}</p></div>` : '';
-      html += kopf + teil;
+      html += (istBib ? `<div class="bereich"><h2>${esc(b.titel)}</h2><p>${esc(b.text)}</p></div>` : '') + teil;
     }
   }
   if (!treffer) {
@@ -340,7 +582,7 @@ function zeigeSpiel(id) {
   delete ansicht.zu[s.kategorie];
   ansichtMerken();
   rendern();
-  const el = $(`.spiel[data-id="${CSS.escape(id)}"]`);
+  const el = $(`details .spiel[data-id="${CSS.escape(id)}"]`) || $(`.spiel[data-id="${CSS.escape(id)}"]`);
   if (el) {
     el.scrollIntoView({ behavior: 'smooth', block: 'center' });
     el.classList.add('markiert');
@@ -350,13 +592,25 @@ function zeigeSpiel(id) {
 
 /* ---------- Aktionen in der Liste ---------- */
 
-function aendereSpiel(id, aenderung) {
-  const s = daten.spiele.find((x) => x.id === id);
-  if (!s) return null;
-  Object.assign(s, aenderung);
+function setzeStatus(s, status) {
+  s.status = status;
+  s.durchgespieltAm = status === 'durchgespielt' ? jetzt() : null;
+  beruehren(s);
+}
+
+function verschieben(s, richtung) {
+  const geschwister = daten.spiele.filter((x) => x.kategorie === s.kategorie).sort((a, b) => a.reihenfolge - b.reihenfolge);
+  const i = geschwister.indexOf(s);
+  const j = i + richtung;
+  if (j < 0 || j >= geschwister.length) return;
+  [geschwister[i], geschwister[j]] = [geschwister[j], geschwister[i]];
+  geschwister.forEach((x, pos) => {
+    if (x.reihenfolge !== pos) { x.reihenfolge = pos; beruehren(x); }
+  });
   speichern();
   rendern();
-  return s;
+  const knopf = $(`details .spiel[data-id="${CSS.escape(s.id)}"] [data-aktion="${richtung < 0 ? 'hoch' : 'runter'}"]`);
+  if (knopf && !knopf.disabled) knopf.focus({ preventScroll: false });
 }
 
 function listeEinrichten() {
@@ -366,31 +620,38 @@ function listeEinrichten() {
     const knopf = e.target.closest('[data-aktion]');
     if (!knopf || knopf.tagName === 'SELECT') return;
     const id = knopf.closest('.spiel')?.dataset.id;
-    if (!id) return;
     const s = daten.spiele.find((x) => x.id === id);
+    if (!s) return;
     switch (knopf.dataset.aktion) {
       case 'stern': {
         const wert = Number(knopf.dataset.wert);
-        aendereSpiel(id, { bewertung: s.bewertung === wert ? 0 : wert });
+        s.bewertung = s.bewertung === wert ? 0 : wert;
+        beruehren(s); speichern(); rendern();
         break;
       }
       case 'bearbeiten': spielDialogOeffnen(id); break;
       case 'gekauft': gekauftDialogOeffnen(id); break;
+      case 'aufklappen': aufgeklappt.add(id); rendern(); break;
+      case 'zuklappen': aufgeklappt.delete(id); rendern(); break;
+      case 'hoch': verschieben(s, -1); break;
+      case 'runter': verschieben(s, 1); break;
     }
   });
 
   liste.addEventListener('change', (e) => {
     if (e.target.dataset.aktion !== 'status') return;
-    const id = e.target.closest('.spiel').dataset.id;
-    const status = e.target.value;
-    const s = aendereSpiel(id, { status });
-    if (status === 'durchgespielt') zeigeHinweis(`🎉 „${s.name}“ durchgespielt!`);
+    const s = daten.spiele.find((x) => x.id === e.target.closest('.spiel').dataset.id);
+    if (!s) return;
+    setzeStatus(s, e.target.value);
+    speichern();
+    rendern();
+    if (s.status === 'durchgespielt') zeigeHinweis(`🎉 „${s.name}“ durchgespielt!`);
   });
 
   // Auf- und Zuklappen der Kategorien merken (nur ohne aktive Filter)
   liste.addEventListener('toggle', (e) => {
     const det = e.target;
-    if (!det.matches?.('details.kategorie') || filterAktiv()) return;
+    if (!det.matches?.('details.kategorie') || filterAktiv() || reihenfolgeModus) return;
     if (det.open) delete ansicht.zu[det.dataset.kategorie];
     else ansicht.zu[det.dataset.kategorie] = true;
     ansichtMerken();
@@ -401,7 +662,6 @@ function listeEinrichten() {
 
 function dialogeEinrichten() {
   for (const d of $$('dialog')) {
-    // Tipp auf den abgedunkelten Hintergrund schließt den Dialog
     d.addEventListener('click', (e) => { if (e.target === d) d.close(); });
   }
   document.addEventListener('click', (e) => {
@@ -468,6 +728,7 @@ function spielDialogOeffnen(id = null) {
   form.beschreibung.value = s?.beschreibung ?? '';
   form.spielzeit.value = s?.spielzeit ?? '';
   form.notiz.value = s?.notiz ?? '';
+  form.steamAppId.value = s?.steamAppId ?? '';
   statusSegmenteRendern(listeDerAuswahl(form), s?.status ?? 'offen');
   dialogSterneSetzen(s?.bewertung ?? 0);
 
@@ -477,16 +738,16 @@ function spielDialogOeffnen(id = null) {
 
 function spielDialogEinrichten() {
   const form = $('#form-spiel');
+  const statusNeu = () => {
+    const aktuell = form.querySelector('input[name="status"]:checked')?.value;
+    statusSegmenteRendern(listeDerAuswahl(form), aktuell);
+  };
 
   form.kategorie.addEventListener('change', () => {
     $('#neue-kat').hidden = form.kategorie.value !== '__neu__';
-    const aktuell = form.querySelector('input[name="status"]:checked')?.value;
-    statusSegmenteRendern(listeDerAuswahl(form), aktuell);
+    statusNeu();
   });
-  form.neueKatBereich.addEventListener('change', () => {
-    const aktuell = form.querySelector('input[name="status"]:checked')?.value;
-    statusSegmenteRendern(listeDerAuswahl(form), aktuell);
-  });
+  form.neueKatBereich.addEventListener('change', statusNeu);
 
   $('#feld-sterne').addEventListener('click', (e) => {
     const stern = e.target.closest('.stern');
@@ -500,7 +761,6 @@ function spielDialogEinrichten() {
     const name = form.name.value.trim();
     if (!name) { form.name.focus(); return; }
 
-    // Kategorie bestimmen (ggf. neu anlegen)
     let katName = form.kategorie.value;
     if (katName === '__neu__') {
       const neuName = form.neueKatName.value.trim();
@@ -518,6 +778,7 @@ function spielDialogEinrichten() {
     const status = kat.liste === 'bibliothek'
       ? (form.querySelector('input[name="status"]:checked')?.value ?? 'offen')
       : 'offen';
+    const appId = parseInt(form.steamAppId.value, 10);
 
     const werte = {
       name,
@@ -527,13 +788,16 @@ function spielDialogEinrichten() {
       bewertung: Number($('#feld-sterne').dataset.wert) || 0,
       kategorie: kat.name,
       liste: kat.liste,
-      status,
+      steamAppId: appId > 0 ? appId : null,
     };
 
     if (bearbeiteId) {
       const s = daten.spiele.find((x) => x.id === bearbeiteId);
       const wechsel = s.liste !== werte.liste;
+      if (s.kategorie !== werte.kategorie) werte.reihenfolge = naechsteReihenfolge(werte.kategorie);
       Object.assign(s, werte);
+      if (s.status !== status) setzeStatus(s, status);
+      beruehren(s);
       speichern();
       $('#dlg-spiel').close();
       rendern();
@@ -541,12 +805,16 @@ function spielDialogEinrichten() {
       return;
     }
 
-    const neu = { id: neueId(), ...werte };
+    const neu = {
+      id: neueId(), ...werte, status,
+      reihenfolge: naechsteReihenfolge(kat.name),
+      durchgespieltAm: status === 'durchgespielt' ? jetzt() : null,
+      geaendert: jetzt(),
+    };
     daten.spiele.push(neu);
     speichern();
     $('#dlg-spiel').close();
     zeigeHinweis(`„${name}“ hinzugefügt`);
-    // Filter, die das neue Spiel verstecken würden, zurücksetzen
     if (ansicht.reiter !== neu.liste) { ansicht.reiter = neu.liste; ansicht.kategorie = ''; }
     if (!passtZumFilter(neu)) {
       suchtext = ''; $('#suche').value = '';
@@ -561,6 +829,7 @@ function spielDialogEinrichten() {
     if (!s) return;
     sicherungMachen();
     daten.spiele = daten.spiele.filter((x) => x.id !== s.id);
+    daten.geloescht[s.id] = jetzt();
     speichern();
     $('#dlg-spiel').close();
     rendern();
@@ -590,9 +859,11 @@ function gekauftDialogEinrichten() {
     const s = daten.spiele.find((x) => x.id === gekauftId);
     if (!kat || !s) return;
     sicherungMachen();
-    Object.assign(s, { liste: 'bibliothek', kategorie: kat.name, status: 'offen' });
+    Object.assign(s, { liste: 'bibliothek', kategorie: kat.name, status: 'offen', reihenfolge: naechsteReihenfolge(kat.name) });
+    beruehren(s);
     speichern();
     $('#dlg-gekauft').close();
+    aufgeklappt.delete(s.id);
     rendern();
     zeigeHinweis(`🛒 „${s.name}“ ist jetzt in der Bibliothek`, true);
   });
@@ -620,6 +891,7 @@ function wuerfelDialogOeffnen() {
   $('#wuerfel-angefangen').checked = ansicht.wuerfelAngefangen;
   $('#wuerfel-ergebnis').innerHTML = '';
   $('#wuerfel-nehmen').hidden = true;
+  $('#wuerfel-los').textContent = '🎲 Würfeln';
   letzterVorschlag = null;
   $('#dlg-wuerfel').showModal();
 }
@@ -646,7 +918,6 @@ function wuerfeln() {
     $('#wuerfel-nehmen').hidden = true;
     return;
   }
-  // Möglichst nicht zweimal hintereinander dasselbe Spiel
   const auswahlPool = pool.length > 1 ? pool.filter((s) => s.id !== letzterVorschlag) : pool;
   const s = auswahlPool[Math.floor(Math.random() * auswahlPool.length)];
   letzterVorschlag = s.id;
@@ -673,43 +944,419 @@ function wuerfelDialogEinrichten() {
   $('#wuerfel-nehmen').addEventListener('click', () => {
     const s = daten.spiele.find((x) => x.id === letzterVorschlag);
     if (!s) return;
-    if (s.status === 'offen') s.status = 'angefangen';
+    if (s.status === 'offen') setzeStatus(s, 'angefangen');
     speichern();
     $('#dlg-wuerfel').close();
-    $('#wuerfel-los').textContent = '🎲 Würfeln';
     zeigeHinweis(`Viel Spaß mit „${s.name}“!`);
     zeigeSpiel(s.id);
   });
-  $('#dlg-wuerfel').addEventListener('close', () => { $('#wuerfel-los').textContent = '🎲 Würfeln'; });
+}
+
+/* ---------- Statistik ---------- */
+
+function statistikOeffnen() {
+  const bib = daten.spiele.filter((s) => s.liste === 'bibliothek');
+  const wunsch = daten.spiele.filter((s) => s.liste === 'wunschliste');
+  const zaehle = (st) => bib.filter((s) => s.status === st).length;
+  const durch = zaehle('durchgespielt');
+  const jahr = new Date().getFullYear();
+  const diesesJahr = bib.filter((s) => s.status === 'durchgespielt' && s.durchgespieltAm?.startsWith(String(jahr))).length;
+  const minuten = bib.reduce((summe, s) => summe + spielzeitMinuten(s.spielzeit), 0);
+  const bewertet = daten.spiele.filter((s) => s.bewertung > 0);
+  const schnitt = bewertet.length ? bewertet.reduce((a, s) => a + s.bewertung, 0) / bewertet.length : 0;
+  const meistgespielt = [...bib].filter((s) => spielzeitMinuten(s.spielzeit) > 0)
+    .sort((a, b) => spielzeitMinuten(b.spielzeit) - spielzeitMinuten(a.spielzeit)).slice(0, 5);
+  const lieblinge = [...bewertet].sort((a, b) => b.bewertung - a.bewertung || a.name.localeCompare(b.name, 'de')).slice(0, 5);
+
+  const farben = { angefangen: 'var(--st-angefangen)', durchgespielt: 'var(--st-durch)', abgebrochen: 'var(--st-ab)', offen: 'var(--st-offen)' };
+  const reihe = ['durchgespielt', 'angefangen', 'abgebrochen', 'offen'];
+  const verteilung = reihe.map((st) => {
+    const n = zaehle(st);
+    return n ? `<i style="width:${(n / bib.length) * 100}%;background:${farben[st]}" title="${STATUS_TEXT[st]}: ${n}"></i>` : '';
+  }).join('');
+  const legende = reihe.map((st) => `<span><i style="background:${farben[st]}"></i>${STATUS_TEXT[st]}: ${zaehle(st)}</span>`).join('');
+
+  const katZeilen = daten.kategorien.filter((k) => k.liste === 'bibliothek').map((k) => {
+    const alle = bib.filter((s) => s.kategorie === k.name);
+    if (!alle.length) return '';
+    const d = alle.filter((s) => s.status === 'durchgespielt').length;
+    return `<div class="kat-zeile"><span>${esc(k.name)}</span><span class="leise">${d}/${alle.length}</span>
+      <span class="balken" aria-hidden="true"><i style="width:${Math.round((d / alle.length) * 100)}%"></i></span></div>`;
+  }).join('');
+
+  $('#statistik-inhalt').innerHTML = `
+    <div class="kacheln">
+      <div class="kachel"><b>${durch}</b><span>von ${bib.length} durchgespielt (${bib.length ? Math.round((durch / bib.length) * 100) : 0} %)</span></div>
+      <div class="kachel"><b>${diesesJahr}</b><span>durchgespielt in ${jahr}</span></div>
+      <div class="kachel"><b>${stundenText(minuten)}</b><span>Spielzeit insgesamt</span></div>
+      <div class="kachel"><b>${zaehle('angefangen')}</b><span>gerade angefangen</span></div>
+      <div class="kachel"><b>${schnitt ? schnitt.toLocaleString('de-DE', { maximumFractionDigits: 1 }) + ' ★' : '–'}</b><span>Ø Bewertung (${bewertet.length} bewertet)</span></div>
+      <div class="kachel"><b>${wunsch.length}</b><span>auf der Wunschliste</span></div>
+    </div>
+    <div>
+      <h3>Status deiner Bibliothek</h3>
+      <div class="verteilung" aria-hidden="true">${verteilung}</div>
+      <div class="legende">${legende}</div>
+    </div>
+    ${meistgespielt.length ? `<div><h3>Meistgespielt</h3><ol>${meistgespielt.map((s) => `<li>${esc(s.name)} <span>– ${esc(s.spielzeit)}</span></li>`).join('')}</ol></div>` : ''}
+    ${lieblinge.length ? `<div><h3>Deine Lieblinge</h3><ol>${lieblinge.map((s) => `<li>${esc(s.name)} <span>– ${'★'.repeat(s.bewertung)}</span></li>`).join('')}</ol></div>` : ''}
+    <div><h3>Fortschritt je Kategorie</h3><div class="statistik">${katZeilen}</div></div>`;
+  $('#dlg-statistik').showModal();
+}
+
+/* ---------- Synchronisation (Supabase) ---------- */
+
+const sync = { client: null, user: null, zustand: 'aus', laeuft: false, nochmal: false, timer: null, kanal: null, fehler: '' };
+
+function syncKonfiguration() {
+  const c = window.SPIELE_CONFIG || {};
+  let lokal = null;
+  try { lokal = JSON.parse(localStorage.getItem(SYNC_KEY) || 'null'); } catch { /* egal */ }
+  return {
+    url: (c.supabaseUrl || lokal?.url || '').trim(),
+    key: (c.supabaseKey || lokal?.key || '').trim(),
+    ausDatei: Boolean(c.supabaseUrl && c.supabaseKey),
+  };
+}
+
+function skriptLaden(src) {
+  return new Promise((ok, fehler) => {
+    if (window.supabase?.createClient) return ok();
+    const el = document.createElement('script');
+    el.src = src;
+    el.onload = () => ok();
+    el.onerror = () => fehler(new Error('Supabase-Bibliothek konnte nicht geladen werden'));
+    document.head.appendChild(el);
+  });
+}
+
+function syncZustand(zustand, fehler = '') {
+  sync.zustand = zustand;
+  sync.fehler = fehler;
+  const knopf = $('#sync-knopf');
+  knopf.dataset.zustand = zustand;
+  const texte = {
+    aus: 'Synchronisation: nicht eingerichtet', abgemeldet: 'Synchronisation: nicht angemeldet',
+    ok: 'Synchronisation: alles abgeglichen', laeuft: 'Synchronisation läuft …',
+    fehler: 'Synchronisation: Fehler', offline: 'Synchronisation: offline',
+  };
+  knopf.setAttribute('aria-label', texte[zustand] ?? 'Synchronisation');
+  knopf.title = texte[zustand] ?? '';
+  if ($('#dlg-sync').open) syncDialogAktualisieren();
+}
+
+async function syncStarten() {
+  const cfg = syncKonfiguration();
+  if (!cfg.url || !cfg.key) { syncZustand('aus'); return; }
+  try {
+    await skriptLaden('vendor/supabase.js');
+    sync.client = window.supabase.createClient(cfg.url, cfg.key, {
+      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, storageKey: 'spieleliste.auth' },
+    });
+    const { data } = await sync.client.auth.getSession();
+    sync.user = data.session?.user ?? null;
+    sync.client.auth.onAuthStateChange((ereignis, session) => {
+      const vorher = sync.user?.id;
+      sync.user = session?.user ?? null;
+      if (ereignis === 'PASSWORD_RECOVERY') passwortNeuSetzen();
+      if (sync.user && sync.user.id !== vorher) { realtimeStarten(); syncJetzt(); }
+      if (!sync.user) { realtimeStoppen(); syncZustand('abgemeldet'); }
+    });
+    if (sync.user) {
+      realtimeStarten();
+      syncJetzt();
+    } else {
+      syncZustand('abgemeldet');
+    }
+  } catch (e) {
+    console.error(e);
+    syncZustand('fehler', e.message);
+  }
+}
+
+function realtimeStarten() {
+  if (!sync.client || !sync.user || sync.kanal) return;
+  sync.kanal = sync.client.channel('spieleliste-' + sync.user.id)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'spielelisten', filter: `user_id=eq.${sync.user.id}` },
+      () => syncPlanen(400))
+    .subscribe();
+}
+
+function realtimeStoppen() {
+  if (sync.kanal) { sync.client.removeChannel(sync.kanal); sync.kanal = null; }
+}
+
+function syncPlanen(verzoegerung = 1500) {
+  if (!sync.client || !sync.user) return;
+  clearTimeout(sync.timer);
+  sync.timer = setTimeout(syncJetzt, verzoegerung);
+}
+
+async function syncJetzt() {
+  if (!sync.client || !sync.user) return;
+  if (sync.laeuft) { sync.nochmal = true; return; }
+  if (!navigator.onLine) { syncZustand('offline'); return; }
+  sync.laeuft = true;
+  syncZustand('laeuft');
+  try {
+    const { data, error } = await sync.client.from('spielelisten').select('daten').eq('user_id', sync.user.id).maybeSingle();
+    if (error) throw error;
+
+    const vorher = vergleichsText(daten);
+    let fernText = null;
+    if (data?.daten) {
+      const fern = normalisieren(data.daten);
+      fernText = vergleichsText(fern);
+      daten = zusammenfuehren(daten, fern);
+    }
+    const nachher = inhalt(daten);
+    const nachherText = vergleichsText(daten);
+
+    if (nachherText !== fernText) {
+      const { error: fehler } = await sync.client.from('spielelisten')
+        .upsert({ user_id: sync.user.id, daten: nachher, geaendert: jetzt() });
+      if (fehler) throw fehler;
+    }
+    daten.letzterSync = jetzt();
+    lokalSchreiben();
+    if (nachherText !== vorher) {
+      // Offene Bearbeitungsdialoge nicht stören – Liste trotzdem neu zeichnen
+      rendern();
+    }
+    syncZustand('ok');
+  } catch (e) {
+    console.error('Sync-Fehler', e);
+    syncZustand(navigator.onLine ? 'fehler' : 'offline', e.message || String(e));
+  } finally {
+    sync.laeuft = false;
+    if (sync.nochmal) { sync.nochmal = false; syncPlanen(200); }
+  }
+}
+
+function syncMeldung(text, istFehler = false) {
+  const el = $('#sync-meldung');
+  el.hidden = !text;
+  el.textContent = text || '';
+  el.classList.toggle('fehler', istFehler);
+}
+
+function syncDialogAktualisieren() {
+  const cfg = syncKonfiguration();
+  $('#sync-einrichten').hidden = Boolean(cfg.url && cfg.key);
+  $('#sync-anmelden').hidden = !(cfg.url && cfg.key) || Boolean(sync.user);
+  $('#sync-angemeldet').hidden = !sync.user;
+  $('#sync-trennen').hidden = !(cfg.url && cfg.key) || cfg.ausDatei;
+  if (sync.user) {
+    const zustand = {
+      ok: '✅ Alles abgeglichen', laeuft: '↻ Wird abgeglichen …', offline: '📴 Offline – wird nachgeholt, sobald du wieder online bist',
+      fehler: `⚠️ Fehler: ${sync.fehler}`,
+    }[sync.zustand] ?? '';
+    $('#sync-info').innerHTML = `Angemeldet als <b>${esc(sync.user.email)}</b><br>${esc(zustand)}<br><span class="leise klein">Letzter Abgleich: ${esc(datumText(daten.letzterSync))}</span>`;
+  }
+}
+
+function syncDialogOeffnen() {
+  syncMeldung('');
+  syncDialogAktualisieren();
+  $('#dlg-sync').showModal();
+}
+
+function fehlerText(e) {
+  const m = e?.message || String(e);
+  if (/Invalid login credentials/i.test(m)) return 'E-Mail oder Passwort ist falsch.';
+  if (/Email not confirmed/i.test(m)) return 'Bitte bestätige zuerst deine E-Mail-Adresse (Link in der Mail).';
+  if (/already registered/i.test(m)) return 'Für diese E-Mail gibt es schon ein Konto. Bitte anmelden.';
+  if (/Password should be/i.test(m)) return 'Das Passwort muss mindestens 8 Zeichen haben.';
+  if (/signups not allowed|Signups not allowed/i.test(m)) return 'Neue Konten sind in Supabase gesperrt.';
+  if (/Failed to fetch|NetworkError/i.test(m)) return 'Keine Verbindung zu Supabase. Bist du online? Stimmt die Project URL?';
+  return m;
+}
+
+async function passwortNeuSetzen() {
+  const pw = prompt('Neues Passwort für deine Spieleliste (mindestens 8 Zeichen):');
+  if (!pw) return;
+  const { error } = await sync.client.auth.updateUser({ password: pw });
+  zeigeHinweis(error ? fehlerText(error) : 'Passwort geändert');
+}
+
+function syncDialogEinrichten() {
+  $('#sync-knopf').addEventListener('click', syncDialogOeffnen);
+
+  $('#sync-einrichten').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const f = e.target;
+    const url = f.url.value.trim().replace(/\/+$/, '');
+    const key = f.key.value.trim();
+    if (!/^https:\/\/.+/.test(url)) { syncMeldung('Die Project URL muss mit https:// beginnen.', true); return; }
+    try { localStorage.setItem(SYNC_KEY, JSON.stringify({ url, key })); } catch { /* egal */ }
+    syncMeldung('Verbinde …');
+    await syncStarten();
+    syncMeldung(sync.zustand === 'fehler' ? fehlerText(sync.fehler) : '', sync.zustand === 'fehler');
+    syncDialogAktualisieren();
+  });
+
+  $('#sync-anmelden').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const f = e.target;
+    syncMeldung('Melde an …');
+    const { error } = await sync.client.auth.signInWithPassword({ email: f.email.value.trim(), password: f.passwort.value });
+    if (error) { syncMeldung(fehlerText(error), true); return; }
+    f.reset();
+    syncMeldung('Angemeldet – deine Spiele werden abgeglichen.');
+  });
+
+  $('#sync-registrieren').addEventListener('click', async () => {
+    const f = $('#sync-anmelden');
+    if (!f.reportValidity()) return;
+    syncMeldung('Lege Konto an …');
+    const { data, error } = await sync.client.auth.signUp({
+      email: f.email.value.trim(), password: f.passwort.value,
+      options: { emailRedirectTo: location.origin + location.pathname },
+    });
+    if (error) { syncMeldung(fehlerText(error), true); return; }
+    if (data.session) { syncMeldung('Konto angelegt und angemeldet.'); return; }
+    syncMeldung('Fast geschafft: Du bekommst eine E-Mail. Tippe auf den Link darin und melde dich danach hier mit E-Mail und Passwort an.');
+  });
+
+  $('#sync-passwort-vergessen').addEventListener('click', async () => {
+    const email = $('#sync-anmelden').email.value.trim();
+    if (!email) { syncMeldung('Trag zuerst deine E-Mail-Adresse ein.', true); return; }
+    const { error } = await sync.client.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname });
+    syncMeldung(error ? fehlerText(error) : 'Du bekommst eine E-Mail mit einem Link zum Zurücksetzen.', Boolean(error));
+  });
+
+  $('#sync-jetzt').addEventListener('click', () => syncJetzt());
+
+  $('#sync-abmelden').addEventListener('click', async () => {
+    await sync.client.auth.signOut();
+    syncMeldung('Abgemeldet. Deine Spiele bleiben auf diesem Gerät gespeichert.');
+    syncDialogAktualisieren();
+  });
+
+  $('#sync-trennen').addEventListener('click', async () => {
+    if (!confirm('Verbindung zu Supabase auf diesem Gerät entfernen? Deine Spiele bleiben hier gespeichert.')) return;
+    try { await sync.client?.auth.signOut(); } catch { /* egal */ }
+    realtimeStoppen();
+    localStorage.removeItem(SYNC_KEY);
+    sync.client = null; sync.user = null;
+    syncZustand('aus');
+    syncMeldung('');
+    syncDialogAktualisieren();
+  });
+
+  // Beim Zurückkehren in die App und wenn das Netz wieder da ist abgleichen
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') syncPlanen(300); });
+  window.addEventListener('online', () => syncPlanen(300));
+  window.addEventListener('offline', () => { if (sync.user) syncZustand('offline'); });
+}
+
+/* ---------- Steam-Spielzeiten ---------- */
+
+function steamDialogOeffnen() {
+  $('#dlg-menue').close();
+  $('#steam-ergebnis').innerHTML = '';
+  const bereit = Boolean(sync.client && sync.user);
+  $('#steam-los').disabled = !bereit;
+  $('#steam-text').textContent = bereit
+    ? 'Holt deine aktuellen Spielzeiten aus Steam und trägt sie bei den passenden Spielen ein.'
+    : 'Dafür brauchst du die Synchronisation (☁ oben) und die Steam-Funktion in Supabase. Die Anleitung steht in ANLEITUNG-SYNC.md, Teil 2.';
+  $('#dlg-steam').showModal();
+}
+
+function steamSchluessel(name) {
+  return namensSchluessel(String(name).replace(/\(.*?\)/g, '').replace(/[™®©]/g, ''));
+}
+
+async function steamHolen() {
+  const knopf = $('#steam-los');
+  knopf.disabled = true;
+  knopf.textContent = 'Frage Steam …';
+  const box = $('#steam-ergebnis');
+  try {
+    const { data, error } = await sync.client.functions.invoke('steam-spielzeit', { method: 'POST', body: {} });
+    if (error) {
+      let detail = error.message;
+      try { detail = (await error.context?.json())?.fehler || detail; } catch { /* egal */ }
+      throw new Error(detail);
+    }
+    if (data?.fehler) throw new Error(data.fehler);
+    const steamSpiele = data?.spiele ?? [];
+    if (!steamSpiele.length) throw new Error('Steam hat keine Spiele geliefert. Ist im Steam-Profil „Spieldetails“ auf „Öffentlich“ gestellt?');
+
+    const nachId = new Map(steamSpiele.map((g) => [g.appid, g]));
+    const nachName = new Map(steamSpiele.map((g) => [steamSchluessel(g.name), g]));
+    const gefunden = new Set();
+    let aktualisiert = 0;
+    const nichtGefunden = [];
+    sicherungMachen();
+    for (const s of daten.spiele.filter((x) => x.liste === 'bibliothek')) {
+      const g = (s.steamAppId && nachId.get(s.steamAppId)) || nachName.get(steamSchluessel(s.name));
+      if (!g) { nichtGefunden.push(s.name); continue; }
+      gefunden.add(g.appid);
+      const neueZeit = spielzeitText(g.minuten);
+      if (s.spielzeit !== neueZeit || s.steamAppId !== g.appid) {
+        if (s.spielzeit !== neueZeit) aktualisiert++;
+        s.spielzeit = neueZeit;
+        s.steamAppId = g.appid;
+        beruehren(s);
+      }
+    }
+    speichern();
+    rendern();
+    const nurSteam = steamSpiele.filter((g) => !gefunden.has(g.appid)).sort((a, b) => b.minuten - a.minuten);
+    box.innerHTML = `
+      <p class="meldung">✅ ${steamSpiele.length} Spiele in deinem Steam-Konto · ${aktualisiert} Spielzeiten aktualisiert.</p>
+      ${nichtGefunden.length ? `<details><summary>${nichtGefunden.length} Spiele hier nicht in Steam gefunden</summary>
+        <p class="leise klein">Meist weicht nur der Name ab. Trag beim Spiel unter „Bearbeiten“ die Steam-App-ID ein, dann klappt es beim nächsten Mal.</p>
+        <ul>${nichtGefunden.map((n) => `<li>${esc(n)}</li>`).join('')}</ul></details>` : ''}
+      ${nurSteam.length ? `<details><summary>${nurSteam.length} Steam-Spiele, die hier fehlen</summary>
+        <ul>${nurSteam.map((g) => `<li>${esc(g.name)} <span class="leise">(${esc(spielzeitText(g.minuten) ?? 'nie gespielt')}, App-ID ${g.appid})</span></li>`).join('')}</ul></details>` : ''}`;
+    if (aktualisiert) zeigeHinweis(`${aktualisiert} Spielzeiten aktualisiert`, true);
+  } catch (e) {
+    box.innerHTML = `<p class="meldung fehler">${esc(fehlerText(e))}</p>`;
+  } finally {
+    knopf.disabled = false;
+    knopf.textContent = '🎮 Spielzeiten jetzt holen';
+  }
 }
 
 /* ---------- Menü: Export, Import, Zurücksetzen ---------- */
 
 function exportDatei() {
-  const inhalt = {
-    app: 'spieleliste',
-    version: 1,
-    exportiert: new Date().toISOString(),
-    kategorien: daten.kategorien,
-    spiele: daten.spiele,
-  };
   const heute = new Date().toISOString().slice(0, 10);
-  return new File([JSON.stringify(inhalt, null, 2)], `spieleliste-${heute}.json`, { type: 'application/json' });
+  const text = JSON.stringify({ ...inhalt(daten), exportiert: jetzt() }, null, 2);
+  return new File([text], `spieleliste-${heute}.json`, { type: 'application/json' });
 }
 
 function exportVermerken() {
-  daten.letzterExport = new Date().toISOString();
-  try { localStorage.setItem(DATEN_KEY, JSON.stringify(daten)); } catch { /* egal */ }
+  daten.letzterExport = jetzt();
+  lokalSchreiben();
 }
 
 function menueInfoAktualisieren() {
   const n = daten.spiele.length;
   let text = `${n} Spiele auf diesem Gerät. Zuletzt geändert: ${datumText(daten.geaendert)}. Letzter Export: ${datumText(daten.letzterExport)}.`;
   const tage = daten.letzterExport ? (Date.now() - new Date(daten.letzterExport)) / 864e5 : Infinity;
-  if (tage > 14 && daten.geaendert && (!daten.letzterExport || daten.geaendert > daten.letzterExport)) {
+  if (!sync.user && tage > 14 && daten.geaendert && (!daten.letzterExport || daten.geaendert > daten.letzterExport)) {
     text += ' Tipp: Exportiere ab und zu als Sicherung.';
   }
   $('#menue-info').textContent = text;
+  $('#app-version').textContent = `App-Version ${APP_VERSION}`;
+}
+
+// Ersetzt den kompletten Datenstand so, dass der Sync ihn auch auf andere Geräte überträgt
+function datenErsetzen(neu) {
+  const t = jetzt();
+  const neueIds = new Set(neu.spiele.map((s) => s.id));
+  const geloescht = { ...daten.geloescht, ...neu.geloescht };
+  for (const s of daten.spiele) if (!neueIds.has(s.id)) geloescht[s.id] = t;
+  for (const s of neu.spiele) { s.geaendert = t; delete geloescht[s.id]; }
+  neu.geloescht = geloescht;
+  neu.letzterExport = daten.letzterExport;
+  neu.letzterSync = daten.letzterSync;
+  sicherungMachen();
+  daten = neu;
+  speichern();
 }
 
 async function importieren(datei) {
@@ -720,12 +1367,10 @@ async function importieren(datei) {
     alert('Die Datei konnte nicht gelesen werden.\n\n' + (e.message || e));
     return;
   }
-  const ok = confirm(`Daten ersetzen?\n\nAuf diesem Gerät: ${daten.spiele.length} Spiele\nIn der Datei: ${neu.spiele.length} Spiele\n\nDie Daten auf diesem Gerät werden durch die Datei ersetzt.`);
+  const hinweisSync = sync.user ? '\n\nDa die Synchronisation an ist, gilt das auch für deine anderen Geräte.' : '';
+  const ok = confirm(`Daten ersetzen?\n\nAuf diesem Gerät: ${daten.spiele.length} Spiele\nIn der Datei: ${neu.spiele.length} Spiele\n\nDie Daten auf diesem Gerät werden durch die Datei ersetzt.${hinweisSync}`);
   if (!ok) return;
-  sicherungMachen();
-  neu.letzterExport = daten.letzterExport;
-  daten = neu;
-  speichern();
+  datenErsetzen(neu);
   $('#dlg-menue').close();
   rendern();
   zeigeHinweis(`${neu.spiele.length} Spiele importiert`, true);
@@ -739,6 +1384,9 @@ function menueEinrichten() {
     } catch { $('#teilen-knopf').hidden = true; }
     $('#dlg-menue').showModal();
   });
+
+  $('#steam-knopf').addEventListener('click', steamDialogOeffnen);
+  $('#steam-los').addEventListener('click', steamHolen);
 
   $('#export-knopf').addEventListener('click', () => {
     const datei = exportDatei();
@@ -774,13 +1422,10 @@ function menueEinrichten() {
   });
 
   $('#reset-knopf').addEventListener('click', async () => {
-    if (!confirm('Alle Änderungen (Status, Notizen, Bewertungen, neue Spiele) auf diesem Gerät verwerfen und die Startliste laden?')) return;
+    const zusatz = sync.user ? ' Das gilt wegen der Synchronisation auch für deine anderen Geräte.' : '';
+    if (!confirm('Alle Änderungen (Status, Notizen, Bewertungen, neue Spiele) verwerfen und die Startliste laden?' + zusatz)) return;
     try {
-      const neu = await startdatenLaden();
-      sicherungMachen();
-      neu.letzterExport = daten.letzterExport;
-      daten = neu;
-      speichern();
+      datenErsetzen(await startdatenLaden());
       $('#dlg-menue').close();
       rendern();
       zeigeHinweis('Startdaten geladen', true);
@@ -790,7 +1435,7 @@ function menueEinrichten() {
   });
 }
 
-/* ---------- Kopf: Reiter, Suche, Filter ---------- */
+/* ---------- Kopf: Reiter, Suche, Filter, Ansicht ---------- */
 
 function bedienungEinrichten() {
   for (const knopf of $$('.reiter-knopf')) {
@@ -807,16 +1452,75 @@ function bedienungEinrichten() {
   $('#filter-status').addEventListener('change', (e) => { ansicht.status = e.target.value; ansichtMerken(); rendern(); });
   $('#filter-kategorie').addEventListener('change', (e) => { ansicht.kategorie = e.target.value; ansichtMerken(); rendern(); });
   $('#erledigte-aus').addEventListener('change', (e) => { ansicht.erledigteAus = e.target.checked; ansichtMerken(); rendern(); });
+  $('#sortierung').addEventListener('change', (e) => { ansicht.sortierung = e.target.value; ansichtMerken(); rendern(); });
+  $('#kompakt-knopf').addEventListener('click', () => {
+    ansicht.kompakt = !ansicht.kompakt;
+    aufgeklappt.clear();
+    ansichtMerken();
+    rendern();
+  });
+  const reihenfolgeUmschalten = (an) => {
+    reihenfolgeModus = an;
+    if (an) {
+      suchtext = ''; $('#suche').value = '';
+      ansicht.status = ''; ansicht.erledigteAus = false;
+    }
+    rendern();
+  };
+  $('#reihenfolge-knopf').addEventListener('click', () => reihenfolgeUmschalten(!reihenfolgeModus));
+  $('#reihenfolge-fertig').addEventListener('click', () => {
+    reihenfolgeUmschalten(false);
+    if (ansicht.sortierung !== 'eigene') {
+      ansicht.sortierung = 'eigene';
+      ansichtMerken();
+      rendern();
+      zeigeHinweis('Sortierung auf „Eigene Reihenfolge“ gestellt');
+    }
+  });
   $('#neu-knopf').addEventListener('click', () => spielDialogOeffnen());
-  $('#toast-knopf').addEventListener('click', () => { $('#toast').hidden = true; rueckgaengig(); });
+  $('#statistik-knopf').addEventListener('click', statistikOeffnen);
+  $('#toast-knopf').addEventListener('click', () => {
+    $('#toast').hidden = true;
+    const aktion = hinweisAktion;
+    hinweisAktion = null;
+    aktion?.();
+  });
 }
 
-/* ---------- Offline-Fähigkeit ---------- */
+/* ---------- Offline-Fähigkeit und Updates ---------- */
 
 function serviceWorkerRegistrieren() {
   if (!('serviceWorker' in navigator)) return;
   if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') return;
-  navigator.serviceWorker.register('sw.js').catch((e) => console.warn('Service Worker nicht registriert', e));
+
+  let neuGeladen = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (neuGeladen) return;
+    neuGeladen = true;
+    location.reload();
+  });
+
+  const updateAnbieten = (worker) => {
+    zeigeHinweis('Neue Version verfügbar', {
+      knopf: 'Aktualisieren', dauer: 0,
+      aktion: () => worker.postMessage({ typ: 'jetzt-aktivieren' }),
+    });
+  };
+
+  navigator.serviceWorker.register('sw.js').then((reg) => {
+    if (!reg) return;
+    if (reg.waiting && navigator.serviceWorker.controller) updateAnbieten(reg.waiting);
+    reg.addEventListener('updatefound', () => {
+      const neu = reg.installing;
+      neu?.addEventListener('statechange', () => {
+        if (neu.state === 'installed' && navigator.serviceWorker.controller) updateAnbieten(neu);
+      });
+    });
+    // Bei jedem Zurückkehren in die App nach Updates schauen
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') reg.update().catch(() => {});
+    });
+  }).catch((e) => console.warn('Service Worker nicht registriert', e));
 }
 
 /* ---------- Start ---------- */
@@ -828,6 +1532,7 @@ async function start() {
   gekauftDialogEinrichten();
   wuerfelDialogEinrichten();
   menueEinrichten();
+  syncDialogEinrichten();
   bedienungEinrichten();
   try {
     await laden();
@@ -835,8 +1540,10 @@ async function start() {
   } catch (e) {
     console.error(e);
     $('#liste').innerHTML = '<p class="leer">Die Spieleliste konnte nicht geladen werden.<br>Bitte prüfe die Internetverbindung und lade die Seite neu.</p>';
+    return;
   }
   serviceWorkerRegistrieren();
+  syncStarten();
 }
 
 start();

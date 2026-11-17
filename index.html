@@ -21,9 +21,18 @@
   <header class="kopf">
     <div class="kopf-zeile">
       <h1>Meine Spiele</h1>
-      <button class="icon-knopf" id="menue-knopf" aria-label="Menü: Export, Import, Einstellungen">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
-      </button>
+      <div class="kopf-knoepfe">
+        <button class="icon-knopf" id="statistik-knopf" aria-label="Statistik">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10h3v10H4zm6.5 0V4h3v16h-3zM17 20v-7h3v7h-3z"/></svg>
+        </button>
+        <button class="icon-knopf sync-knopf" id="sync-knopf" aria-label="Synchronisation" data-zustand="aus">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 19a4.5 4.5 0 0 1-.6-8.96A6.5 6.5 0 0 1 18.4 9.1 5 5 0 0 1 17.5 19h-11zm0-2h11a3 3 0 0 0 .3-5.98l-1.2-.12-.27-1.18A4.5 4.5 0 0 0 7.8 10.6l-.2 1.2-1.2.17A2.5 2.5 0 0 0 6.5 17z"/></svg>
+          <span class="sync-punkt" aria-hidden="true"></span>
+        </button>
+        <button class="icon-knopf" id="menue-knopf" aria-label="Menü: Export, Import, Steam">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
+        </button>
+      </div>
     </div>
     <nav class="reiter" role="tablist">
       <button role="tab" class="reiter-knopf" data-reiter="bibliothek" aria-selected="true">Bibliothek <span class="zahl" id="zahl-bibliothek"></span></button>
@@ -41,12 +50,31 @@
         <select id="filter-status" aria-label="Nach Status filtern"></select>
         <select id="filter-kategorie" aria-label="Nach Kategorie filtern"></select>
       </div>
+      <div class="ansicht-zeile">
+        <select id="sortierung" aria-label="Sortierung innerhalb der Kategorien">
+          <option value="eigene">Eigene Reihenfolge</option>
+          <option value="status">Angefangene zuerst</option>
+          <option value="bewertung">Beste Bewertung</option>
+          <option value="spielzeit">Meiste Spielzeit</option>
+          <option value="name">Name A–Z</option>
+        </select>
+        <button class="icon-knopf umrandet" id="reihenfolge-knopf" aria-pressed="false" aria-label="Reihenfolge ändern" title="Reihenfolge ändern">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3 3.5 7.5 4.9 8.9 7 6.8V15h2V6.8l2.1 2.1 1.4-1.4L8 3zm8 18 4.5-4.5-1.4-1.4-2.1 2.1V9h-2v8.2l-2.1-2.1-1.4 1.4L16 21z"/></svg>
+        </button>
+        <button class="icon-knopf umrandet" id="kompakt-knopf" aria-pressed="false" aria-label="Kompaktansicht" title="Kompaktansicht">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v2H4V5zm0 4h16v2H4V9zm0 4h16v2H4v-2zm0 4h16v2H4v-2z"/></svg>
+        </button>
+      </div>
       <label class="schalter" id="erledigte-zeile">
         <input type="checkbox" id="erledigte-aus">
         <span class="schalter-bahn" aria-hidden="true"></span>
         Erledigte ausblenden
       </label>
       <button class="knopf haupt breit" id="wuerfel-knopf">🎲 Was soll ich spielen?</button>
+      <div class="hinweis-box" id="reihenfolge-hinweis" hidden>
+        Mit ▲ und ▼ verschiebst du Spiele innerhalb ihrer Kategorie.
+        <button class="knopf" id="reihenfolge-fertig">Fertig</button>
+      </div>
     </section>
 
     <div id="liste" aria-live="polite"></div>
@@ -96,6 +124,9 @@
       <label class="feld">Beschreibung
         <textarea name="beschreibung" rows="4"></textarea>
       </label>
+      <label class="feld">Steam-App-ID (optional)
+        <input name="steamAppId" inputmode="numeric" pattern="[0-9]*" maxlength="10" placeholder="Zahl aus der Steam-Adresse, z. B. 620 für Portal 2">
+      </label>
       <div class="knopf-zeile">
         <button type="button" class="knopf gefahr" id="loeschen-knopf">Löschen</button>
         <span class="platz"></span>
@@ -143,18 +174,93 @@
     </form>
   </dialog>
 
+  <!-- Statistik -->
+  <dialog id="dlg-statistik" class="blatt">
+    <div>
+      <h2>Statistik</h2>
+      <div id="statistik-inhalt" class="statistik"></div>
+      <div class="knopf-zeile">
+        <span class="platz"></span>
+        <button class="knopf" data-schliessen>Schließen</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Synchronisation -->
+  <dialog id="dlg-sync" class="blatt">
+    <div>
+      <h2>Synchronisation</h2>
+
+      <form id="sync-einrichten" class="sync-teil" hidden>
+        <p class="leise">Trag hier die Daten deines Supabase-Projekts ein (Supabase → Project Settings → API Keys). Die Anleitung steht in <b>ANLEITUNG-SYNC.md</b> im Projekt.</p>
+        <label class="feld">Project URL
+          <input name="url" type="url" required placeholder="https://abcdefgh.supabase.co" autocomplete="off">
+        </label>
+        <label class="feld">Publishable Key (oder anon key)
+          <input name="key" required placeholder="sb_publishable_…" autocomplete="off">
+        </label>
+        <button class="knopf haupt breit" type="submit">Verbinden</button>
+      </form>
+
+      <form id="sync-anmelden" class="sync-teil" hidden>
+        <p class="leise">Melde dich auf jedem Gerät mit demselben Konto an. Deine Spiele werden dann automatisch abgeglichen.</p>
+        <label class="feld">E-Mail
+          <input name="email" type="email" required autocomplete="email">
+        </label>
+        <label class="feld">Passwort
+          <input name="passwort" type="password" required minlength="8" autocomplete="current-password">
+        </label>
+        <div class="knopf-zeile">
+          <button type="button" class="knopf" id="sync-registrieren">Konto anlegen</button>
+          <span class="platz"></span>
+          <button type="submit" class="knopf haupt">Anmelden</button>
+        </div>
+        <button type="button" class="link-knopf" id="sync-passwort-vergessen">Passwort vergessen?</button>
+      </form>
+
+      <div id="sync-angemeldet" class="sync-teil" hidden>
+        <p id="sync-info"></p>
+        <button class="knopf haupt breit" id="sync-jetzt">↻ Jetzt synchronisieren</button>
+        <button class="knopf breit" id="sync-abmelden">Abmelden</button>
+      </div>
+
+      <p class="meldung" id="sync-meldung" hidden></p>
+      <div class="knopf-zeile">
+        <button class="link-knopf" id="sync-trennen" hidden>Supabase-Verbindung entfernen</button>
+        <span class="platz"></span>
+        <button class="knopf" data-schliessen>Schließen</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Steam -->
+  <dialog id="dlg-steam" class="blatt">
+    <div>
+      <h2>Spielzeiten von Steam</h2>
+      <p class="leise" id="steam-text">Holt deine aktuellen Spielzeiten aus Steam und trägt sie bei den passenden Spielen ein.</p>
+      <button class="knopf haupt breit" id="steam-los">🎮 Spielzeiten jetzt holen</button>
+      <div id="steam-ergebnis" class="steam-ergebnis"></div>
+      <div class="knopf-zeile">
+        <span class="platz"></span>
+        <button class="knopf" data-schliessen>Schließen</button>
+      </div>
+    </div>
+  </dialog>
+
   <!-- Menü -->
   <dialog id="dlg-menue" class="blatt">
     <div class="menue">
       <h2>Daten</h2>
       <p class="leise" id="menue-info"></p>
+      <button class="knopf breit" id="steam-knopf">🎮 Spielzeiten von Steam holen</button>
       <button class="knopf breit" id="export-knopf">⬇️ Als Datei exportieren</button>
       <button class="knopf breit" id="teilen-knopf" hidden>📤 Datei teilen (z. B. an den PC schicken)</button>
       <button class="knopf breit" id="import-knopf">⬆️ Datei importieren</button>
       <input type="file" id="import-datei" accept=".json,application/json" hidden>
-      <p class="leise klein">Export und Import übertragen alle Spiele, Status, Notizen und Bewertungen zwischen Handy und PC. Ein Import ersetzt die Daten auf diesem Gerät.</p>
+      <p class="leise klein">Export und Import übertragen alle Spiele, Status, Notizen und Bewertungen. Ein Import ersetzt die Daten auf diesem Gerät. Mit eingerichteter Synchronisation (☁ oben) brauchst du das nur noch als Sicherung.</p>
       <hr>
       <button class="knopf breit gefahr-text" id="reset-knopf">Auf Startdaten zurücksetzen</button>
+      <p class="leise klein" id="app-version"></p>
       <div class="knopf-zeile">
         <span class="platz"></span>
         <button class="knopf" data-schliessen>Schließen</button>
@@ -167,6 +273,7 @@
     <button class="toast-knopf" id="toast-knopf" hidden>Rückgängig</button>
   </div>
 
+  <script src="config.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
