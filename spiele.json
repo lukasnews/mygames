@@ -1,0 +1,1046 @@
+[
+  {
+    "name": "Life is Strange: Before the Storm",
+    "beschreibung": "Vorgeschichte zu Life is Strange. Du spielst Chloe, die mit ihrer neuen Freundin Rachel ein Familiengeheimnis aufdeckt. Nur Dialoge und Entscheidungen, keine Kämpfe. Ca. 10 Std.",
+    "spielzeit": null,
+    "liste": "bibliothek",
+    "kategorie": "Top: genau dein Ding",
+    "kategorieInfo": "Linear, starke Story, Schwierigkeit einstellbar",
+    "bereich": "Story-Wunsch"
+  },
+  {
+    "name": "Tell Me Why",
+    "beschreibung": "Zwillinge kehren in ihren Heimatort in Alaska zurück und rollen die Vergangenheit ihrer Mutter auf. Ruhiges Mystery mit Entscheidungen, keine Kämpfe. Ca. 10 Std.",
+    "spielzeit": null,
+    "liste": "bibliothek",
+    "kategorie": "Top: genau dein Ding",
+    "kategorieInfo": "Linear, starke Story, Schwierigkeit einstellbar",
+    "bereich": "Story-Wunsch"
+  },
+  {
+    "name": "Metro 2033 Redux",
+    "beschreibung": "Moskau nach dem Atomkrieg, die Menschen leben in den U-Bahn-Tunneln. Shooter mit Schleichen, knapper Munition und starker Gruselstimmung. Geradlinig. Ca. 10 Std.",
+    "spielzeit": null,
+    "liste": "bibliothek",
+    "kategorie": "Top: genau dein Ding",
+    "kategorieInfo": "Linear, starke Story, Schwierigkeit einstellbar",
+    "bereich": "Story-Wunsch"
+  },
+  {
+    "name": "Metro: Last Light Redux",
+    "beschreibung": "Direkte Fortsetzung von 2033, etwas mehr Action und noch schönere Kulisse. Ca. 12 Std.",
+    "spielzeit": "1 min",
+    "liste": "bibliothek",
+    "kategorie": "Top: genau dein Ding",
+    "kategorieInfo": "Linear, starke Story, Schwierigkeit einstellbar",
+    "bereich": "Story-Wunsch"
+  },
+  {
+    "name": "Half-Life 2",
+    "beschreibung": "Gordon Freeman gegen die Alien-Besatzer in City 17. Shooter mit Physik-Rätseln, erzählt ohne Zwischensequenzen, alles fließt ineinander. Ca. 13 Std.",
+    "spielzeit": null,
+    "liste": "bibliothek",
+    "kategorie": "Top: genau dein Ding",
+    "kategorieInfo": "Linear, starke Story, Schwierigkeit einstellbar",
+    "bereich": "Story-Wunsch"
+  },
+  {
+    "name": "Rise of the Tomb Raider",
+    "beschreibung": "Lara sucht in Sibirien eine sagenhafte Stadt. Klettern, Rätselgräber und Kämpfe. Einige offene Gebiete mit optionalem Sammelkram. Ca. 15 Std.",
+    "spielzeit": null,
+    "liste": "bibliothek",
+    "kategorie": "Top: genau dein Ding",
+    "kategorieInfo": "Linear, starke Story, Schwierigkeit einstellbar",
+    "bereich": "Story-Wunsch"
+  },
+  {
+    "name": "Dishonored",
+    "beschreibung": "Als Leibwächter der Kaiserin wirst du des Mordes beschuldigt und nimmst Rache. Jede Mission ist ein großes Level, das du schleichend oder kämpfend löst, mit Magie wie Teleportieren. Ca. 12 Std.",
+    "spielzeit": null,
+    "liste": "bibliothek",
+    "kategorie": "Top: genau dein Ding",
+    "kategorieInfo": "Linear, starke Story, Schwierigkeit einstellbar",
+    "bereich": "Story-Wunsch"
+  },
+  {
+    "name": "Dishonored 2",
+    "beschreibung": "15 Jahre später, im sonnigen Karnaca. Noch kreativere Levels, du wählst zwischen zwei Figuren. Ca. 15 Std.",
+    "spielzeit": "105 min",
+    "liste": "bibliothek",
+    "kategorie": "Top: genau dein Ding",
+    "kategorieInfo": "Linear, starke Story, Schwierigkeit einstellbar",
+    "bereich": "Story-Wunsch"
+  },
+  {
+    "name": "Dishonored: Death of the Outsider",
+    "beschreibung": "Kurzes Spin-off mit der Auftragsmörderin Billie Lurk. Am besten nach Teil 2 spielen. Ca. 7 Std.",
+    "spielzeit": null,
+    "liste": "bibliothek",
+    "kategorie": "Top: genau dein Ding",
+    "kategorieInfo": "Linear, starke Story, Schwierigkeit einstellbar",
+    "bereich": "Story-Wunsch"
+  },
+  {
+    "name": "Resident Evil 7 Biohazard",
+    "beschreibung": "Du suchst deine verschwundene Frau in einem Farmhaus in Louisiana und triffst auf eine verstörende Familie. Echter Horror aus Ego-Sicht. Ca. 9 Std.",
+    "spielzeit": null,
+    "liste": "bibliothek",
+    "kategorie": "Top: genau dein Ding",
+    "kategorieInfo": "Linear, starke Story, Schwierigkeit einstellbar",
+    "bereich": "Story-Wunsch"
+  },
+  {
+    "name": "The Witcher 3: Wild Hunt",
+    "beschreibung": "Als Hexer Geralt suchst du deine Ziehtochter Ciri, verfolgt von der Wilden Jagd. Riesige Welt, aber jede Quest ist gut erzählt. Nur Hauptstory: ca. 50 Std.",
+    "spielzeit": null,
+    "liste": "bibliothek",
+    "kategorie": "Top: genau dein Ding",
+    "kategorieInfo": "Linear, starke Story, Schwierigkeit einstellbar",
+    "bereich": "Story-Wunsch"
+  },
+  {
+    "name": "Halo: The Master Chief Collection",
+    "beschreibung": "Sechs Sci-Fi-Shooter-Kampagnen in einem Paket, alle linear. Tipp: Mit Halo: Reach anfangen, das ist chronologisch der erste Teil.",
+    "spielzeit": null,
+    "liste": "bibliothek",
+    "kategorie": "Top: genau dein Ding",
+    "kategorieInfo": "Linear, starke Story, Schwierigkeit einstellbar",
+    "bereich": "Story-Wunsch"
+  },
+  {
+    "name": "Prey",
+    "beschreibung": "Raumstation voller Aliens, die sich als Kaffeetassen und Stühle tarnen. Großartige Atmosphäre, aber du läufst oft durch bekannte Bereiche zurück und der Anfang ist schwer. Ca. 20 Std.",
+    "spielzeit": null,
+    "liste": "bibliothek",
+    "kategorie": "Gut, mit kleinen Abstrichen",
+    "kategorieInfo": "Passt grundsätzlich, hat aber einen Haken",
+    "bereich": "Story-Wunsch"
+  },
+  {
+    "name": "Subnautica",
+    "beschreibung": "Notlandung auf einem Ozeanplaneten. Du tauchst, baust Basen und deckst nach und nach ein Geheimnis auf. Keine Waffen, aber viel Erkunden und Sammeln. Passt gut, wenn dir Satisfactory gefällt. Ca. 30 Std.",
+    "spielzeit": null,
+    "liste": "bibliothek",
+    "kategorie": "Gut, mit kleinen Abstrichen",
+    "kategorieInfo": "Passt grundsätzlich, hat aber einen Haken",
+    "bereich": "Story-Wunsch"
+  },
+  {
+    "name": "Subnautica: Below Zero",
+    "beschreibung": "Eigenständige Fortsetzung auf einem Eisplaneten. Kleiner, dafür mehr Story und Dialoge. Ca. 20 Std.",
+    "spielzeit": null,
+    "liste": "bibliothek",
+    "kategorie": "Gut, mit kleinen Abstrichen",
+    "kategorieInfo": "Passt grundsätzlich, hat aber einen Haken",
+    "bereich": "Story-Wunsch"
+  },
+  {
+    "name": "Little Nightmares II",
+    "beschreibung": "Düsterer Grusel-Plattformer mit Rätseln, ganz ohne Worte erzählt. Mit 8 Std. vermutlich schon durch (das Spiel dauert ca. 5 Std.).",
+    "spielzeit": "8 h",
+    "liste": "bibliothek",
+    "kategorie": "Gut, mit kleinen Abstrichen",
+    "kategorieInfo": "Passt grundsätzlich, hat aber einen Haken",
+    "bereich": "Story-Wunsch"
+  },
+  {
+    "name": "Outlast",
+    "beschreibung": "Als Reporter in einer Irrenanstalt, nur mit Videokamera. Keine Waffen, nur verstecken und rennen. Sehr brutal. Ca. 5 Std.",
+    "spielzeit": "12 min",
+    "liste": "bibliothek",
+    "kategorie": "Gut, mit kleinen Abstrichen",
+    "kategorieInfo": "Passt grundsätzlich, hat aber einen Haken",
+    "bereich": "Story-Wunsch"
+  },
+  {
+    "name": "Outlast 2",
+    "beschreibung": "Gleiches Prinzip, diesmal bei einer Sekte in Arizona. Noch verstörender. Ca. 7 Std.",
+    "spielzeit": "2 min",
+    "liste": "bibliothek",
+    "kategorie": "Gut, mit kleinen Abstrichen",
+    "kategorieInfo": "Passt grundsätzlich, hat aber einen Haken",
+    "bereich": "Story-Wunsch"
+  },
+  {
+    "name": "The Evil Within",
+    "beschreibung": "Survival-Horror vom Resident-Evil-Erfinder. Wenig Munition, harte Gegner, eher knackig. Ca. 15 Std.",
+    "spielzeit": "17 min",
+    "liste": "bibliothek",
+    "kategorie": "Gut, mit kleinen Abstrichen",
+    "kategorieInfo": "Passt grundsätzlich, hat aber einen Haken",
+    "bereich": "Story-Wunsch"
+  },
+  {
+    "name": "Half-Life (bzw. Half-Life: Source)",
+    "beschreibung": "Der Ursprung: Experiment im Black-Mesa-Labor geht schief. Von 1998, sieht alt aus, spielt sich aber immer noch gut. Ca. 12 Std.",
+    "spielzeit": "1 min",
+    "liste": "bibliothek",
+    "kategorie": "Gut, mit kleinen Abstrichen",
+    "kategorieInfo": "Passt grundsätzlich, hat aber einen Haken",
+    "bereich": "Story-Wunsch"
+  },
+  {
+    "name": "Half-Life: Opposing Force",
+    "beschreibung": "Add-on, dieselben Ereignisse aus Sicht eines Soldaten. Ca. 5 Std.",
+    "spielzeit": null,
+    "liste": "bibliothek",
+    "kategorie": "Gut, mit kleinen Abstrichen",
+    "kategorieInfo": "Passt grundsätzlich, hat aber einen Haken",
+    "bereich": "Story-Wunsch"
+  },
+  {
+    "name": "Half-Life: Blue Shift",
+    "beschreibung": "Kurzes Add-on mit dem Wachmann Barney. Ca. 3 Std.",
+    "spielzeit": null,
+    "liste": "bibliothek",
+    "kategorie": "Gut, mit kleinen Abstrichen",
+    "kategorieInfo": "Passt grundsätzlich, hat aber einen Haken",
+    "bereich": "Story-Wunsch"
+  },
+  {
+    "name": "Dark Messiah of Might & Magic",
+    "beschreibung": "Fantasy-Action aus Ego-Sicht, berühmt für Fußtritte und Physik-Spielereien. Von 2006, linear. Ca. 12 Std.",
+    "spielzeit": null,
+    "liste": "bibliothek",
+    "kategorie": "Gut, mit kleinen Abstrichen",
+    "kategorieInfo": "Passt grundsätzlich, hat aber einen Haken",
+    "bereich": "Story-Wunsch"
+  },
+  {
+    "name": "Arx Fatalis",
+    "beschreibung": "Rollenspiel in einer unterirdischen Welt, Zauber werden mit der Maus gezeichnet. Kultspiel von 2002, aber sperrig und mit viel Erkunden.",
+    "spielzeit": null,
+    "liste": "bibliothek",
+    "kategorie": "Gut, mit kleinen Abstrichen",
+    "kategorieInfo": "Passt grundsätzlich, hat aber einen Haken",
+    "bereich": "Story-Wunsch"
+  },
+  {
+    "name": "DOOM",
+    "beschreibung": "Schneller, brutaler Shooter gegen Dämonen auf dem Mars. Kaum Story, aber auf leicht ein riesiger Spaß. Ca. 12 Std.",
+    "spielzeit": null,
+    "liste": "bibliothek",
+    "kategorie": "Gut, mit kleinen Abstrichen",
+    "kategorieInfo": "Passt grundsätzlich, hat aber einen Haken",
+    "bereich": "Story-Wunsch"
+  },
+  {
+    "name": "Call of Duty: Black Ops II (Kampagne)",
+    "beschreibung": "Story springt zwischen Kaltem Krieg und Zukunft, deine Entscheidungen verändern das Ende. Ca. 6 Std.",
+    "spielzeit": null,
+    "liste": "bibliothek",
+    "kategorie": "Gut, mit kleinen Abstrichen",
+    "kategorieInfo": "Passt grundsätzlich, hat aber einen Haken",
+    "bereich": "Story-Wunsch"
+  },
+  {
+    "name": "Dying Light",
+    "beschreibung": "Parkour durch eine Zombie-Stadt, nachts wird es richtig gefährlich. Open World mit vielen Nebenquests, auch im Koop. Story ca. 20 Std.",
+    "spielzeit": "4,4 h",
+    "liste": "bibliothek",
+    "kategorie": "Gut, mit kleinen Abstrichen",
+    "kategorieInfo": "Passt grundsätzlich, hat aber einen Haken",
+    "bereich": "Story-Wunsch"
+  },
+  {
+    "name": "Just Cause 2",
+    "beschreibung": "Open World mit Enterhaken, Fallschirm und Explosionen. Story ist egal, es geht um Chaos.",
+    "spielzeit": null,
+    "liste": "bibliothek",
+    "kategorie": "Gut, mit kleinen Abstrichen",
+    "kategorieInfo": "Passt grundsätzlich, hat aber einen Haken",
+    "bereich": "Story-Wunsch"
+  },
+  {
+    "name": "Just Cause 3",
+    "beschreibung": "Gleiches Prinzip mit Wingsuit, der beste Teil zum Einstieg.",
+    "spielzeit": "115 min",
+    "liste": "bibliothek",
+    "kategorie": "Gut, mit kleinen Abstrichen",
+    "kategorieInfo": "Passt grundsätzlich, hat aber einen Haken",
+    "bereich": "Story-Wunsch"
+  },
+  {
+    "name": "Just Cause 4",
+    "beschreibung": "Neuere Version mit Wetter-Effekten wie Tornados.",
+    "spielzeit": null,
+    "liste": "bibliothek",
+    "kategorie": "Gut, mit kleinen Abstrichen",
+    "kategorieInfo": "Passt grundsätzlich, hat aber einen Haken",
+    "bereich": "Story-Wunsch"
+  },
+  {
+    "name": "Just Cause (Teil 1)",
+    "beschreibung": "Von 2006, nur noch aus Nostalgie interessant.",
+    "spielzeit": null,
+    "liste": "bibliothek",
+    "kategorie": "Gut, mit kleinen Abstrichen",
+    "kategorieInfo": "Passt grundsätzlich, hat aber einen Haken",
+    "bereich": "Story-Wunsch"
+  },
+  {
+    "name": "Portal",
+    "beschreibung": "Rätsel mit einer Portalkanone, begleitet von der bösartig-witzigen KI GLaDOS. Ca. 3 Std.",
+    "spielzeit": null,
+    "liste": "bibliothek",
+    "kategorie": "Kurz, ruhig, Rätsel",
+    "kategorieInfo": "Für zwischendurch, kaum oder keine Kämpfe",
+    "bereich": "Story-Wunsch"
+  },
+  {
+    "name": "Portal 2",
+    "beschreibung": "Größer und sehr lustig, eines der besten Rätselspiele überhaupt. Mit Koop-Modus. Ca. 8 Std.",
+    "spielzeit": null,
+    "liste": "bibliothek",
+    "kategorie": "Kurz, ruhig, Rätsel",
+    "kategorieInfo": "Für zwischendurch, kaum oder keine Kämpfe",
+    "bereich": "Story-Wunsch"
+  },
+  {
+    "name": "The Talos Principle",
+    "beschreibung": "Rätsel in antiken Ruinen, dazu Fragen über Bewusstsein und KI. Ca. 15 Std.",
+    "spielzeit": null,
+    "liste": "bibliothek",
+    "kategorie": "Kurz, ruhig, Rätsel",
+    "kategorieInfo": "Für zwischendurch, kaum oder keine Kämpfe",
+    "bereich": "Story-Wunsch"
+  },
+  {
+    "name": "The Witness",
+    "beschreibung": "Insel voller Linien-Rätsel, ganz ohne Erklärungen. Anspruchsvoll, für echte Rätsel-Fans. Ca. 20 Std.",
+    "spielzeit": null,
+    "liste": "bibliothek",
+    "kategorie": "Kurz, ruhig, Rätsel",
+    "kategorieInfo": "Für zwischendurch, kaum oder keine Kämpfe",
+    "bereich": "Story-Wunsch"
+  },
+  {
+    "name": "Superliminal",
+    "beschreibung": "Perspektiv-Rätsel: Was du hochhebst, ist so groß, wie es gerade aussieht. Ca. 3 Std.",
+    "spielzeit": null,
+    "liste": "bibliothek",
+    "kategorie": "Kurz, ruhig, Rätsel",
+    "kategorieInfo": "Für zwischendurch, kaum oder keine Kämpfe",
+    "bereich": "Story-Wunsch"
+  },
+  {
+    "name": "Manifold Garden",
+    "beschreibung": "Endlose Architektur, du drehst die Schwerkraft an jede Wand. Ca. 5 Std.",
+    "spielzeit": null,
+    "liste": "bibliothek",
+    "kategorie": "Kurz, ruhig, Rätsel",
+    "kategorieInfo": "Für zwischendurch, kaum oder keine Kämpfe",
+    "bereich": "Story-Wunsch"
+  },
+  {
+    "name": "The Timeless Child",
+    "beschreibung": "Kann ich nicht sicher einordnen, am besten auf der Steam-Seite nachsehen.",
+    "spielzeit": null,
+    "liste": "bibliothek",
+    "kategorie": "Kurz, ruhig, Rätsel",
+    "kategorieInfo": "Für zwischendurch, kaum oder keine Kämpfe",
+    "bereich": "Story-Wunsch"
+  },
+  {
+    "name": "GRIS",
+    "beschreibung": "Wunderschöner Plattformer in Aquarell-Optik über Trauer. Keine Kämpfe, man kann nicht sterben. Ca. 4 Std.",
+    "spielzeit": null,
+    "liste": "bibliothek",
+    "kategorie": "Kurz, ruhig, Rätsel",
+    "kategorieInfo": "Für zwischendurch, kaum oder keine Kämpfe",
+    "bereich": "Story-Wunsch"
+  },
+  {
+    "name": "Bramble: The Mountain King",
+    "beschreibung": "Düsteres Märchen nach nordischen Sagen, Plattformer mit Bossen. Mit 5,2 Std. vermutlich fast durch.",
+    "spielzeit": "5,2 h",
+    "liste": "bibliothek",
+    "kategorie": "Kurz, ruhig, Rätsel",
+    "kategorieInfo": "Für zwischendurch, kaum oder keine Kämpfe",
+    "bereich": "Story-Wunsch"
+  },
+  {
+    "name": "Unravel Two",
+    "beschreibung": "Zwei Figuren aus Wolle, Plattformer mit Rätseln. Solo oder zu zweit. Ca. 6 Std.",
+    "spielzeit": null,
+    "liste": "bibliothek",
+    "kategorie": "Kurz, ruhig, Rätsel",
+    "kategorieInfo": "Für zwischendurch, kaum oder keine Kämpfe",
+    "bereich": "Story-Wunsch"
+  },
+  {
+    "name": "SUPERHOT",
+    "beschreibung": "Zeit bewegt sich nur, wenn du dich bewegst. Jedes Level wie ein Actionfilm in Zeitlupe. Ca. 2 Std.",
+    "spielzeit": null,
+    "liste": "bibliothek",
+    "kategorie": "Kurz, ruhig, Rätsel",
+    "kategorieInfo": "Für zwischendurch, kaum oder keine Kämpfe",
+    "bereich": "Story-Wunsch"
+  },
+  {
+    "name": "Ori and the Blind Forest",
+    "beschreibung": "Bildschöner Plattformer mit rührender Story. Aber knackig und mit viel Hin-und-her.",
+    "spielzeit": "2,5 h",
+    "liste": "bibliothek",
+    "kategorie": "Kurz, ruhig, Rätsel",
+    "kategorieInfo": "Für zwischendurch, kaum oder keine Kämpfe",
+    "bereich": "Story-Wunsch"
+  },
+  {
+    "name": "Ori and the Will of the Wisps",
+    "beschreibung": "Fortsetzung, noch schöner, mehr Kämpfe und Bosse.",
+    "spielzeit": null,
+    "liste": "bibliothek",
+    "kategorie": "Kurz, ruhig, Rätsel",
+    "kategorieInfo": "Für zwischendurch, kaum oder keine Kämpfe",
+    "bereich": "Story-Wunsch"
+  },
+  {
+    "name": "Escape Simulator",
+    "beschreibung": "Escape-Rooms am PC, solo oder im Koop. Gut für einen Abend.",
+    "spielzeit": null,
+    "liste": "bibliothek",
+    "kategorie": "Kurz, ruhig, Rätsel",
+    "kategorieInfo": "Für zwischendurch, kaum oder keine Kämpfe",
+    "bereich": "Story-Wunsch"
+  },
+  {
+    "name": "Escape Simulator 2",
+    "beschreibung": "Fortsetzung mit neuen Räumen.",
+    "spielzeit": null,
+    "liste": "bibliothek",
+    "kategorie": "Kurz, ruhig, Rätsel",
+    "kategorieInfo": "Für zwischendurch, kaum oder keine Kämpfe",
+    "bereich": "Story-Wunsch"
+  },
+  {
+    "name": "It Takes Two",
+    "beschreibung": "Ein Paar wird in Puppen verwandelt und muss zusammenarbeiten. Jedes Level hat eine neue Spielidee. Mit 18 Std. wohl schon durch.",
+    "spielzeit": "18 h",
+    "liste": "bibliothek",
+    "kategorie": "Nur Koop",
+    "kategorieInfo": "Story-Spiele, aber nur zu zweit",
+    "bereich": "Story-Wunsch"
+  },
+  {
+    "name": "Split Fiction",
+    "beschreibung": "Vom selben Studio: Zwei Autorinnen stecken in ihren eigenen Geschichten fest, abwechselnd Sci-Fi und Fantasy. Ca. 14 Std.",
+    "spielzeit": "77 min",
+    "liste": "bibliothek",
+    "kategorie": "Nur Koop",
+    "kategorieInfo": "Story-Spiele, aber nur zu zweit",
+    "bereich": "Story-Wunsch"
+  },
+  {
+    "name": "A Way Out",
+    "beschreibung": "Zwei Häftlinge brechen gemeinsam aus, im geteilten Bildschirm. Online braucht nur einer das Spiel. Ca. 6 Std.",
+    "spielzeit": "1 min",
+    "liste": "bibliothek",
+    "kategorie": "Nur Koop",
+    "kategorieInfo": "Story-Spiele, aber nur zu zweit",
+    "bereich": "Story-Wunsch"
+  },
+  {
+    "name": "We Were Here",
+    "beschreibung": "Getrennt, nur per Funk verbunden: Einer sieht das Rätsel, der andere die Lösung. Ca. 2 Std.",
+    "spielzeit": "115 min",
+    "liste": "bibliothek",
+    "kategorie": "Nur Koop",
+    "kategorieInfo": "Story-Spiele, aber nur zu zweit",
+    "bereich": "Story-Wunsch"
+  },
+  {
+    "name": "We Were Here Too",
+    "beschreibung": "Gleiches Prinzip, etwas länger.",
+    "spielzeit": null,
+    "liste": "bibliothek",
+    "kategorie": "Nur Koop",
+    "kategorieInfo": "Story-Spiele, aber nur zu zweit",
+    "bereich": "Story-Wunsch"
+  },
+  {
+    "name": "We Were Here Together",
+    "beschreibung": "Größer, mit mehr Story. Ca. 6 Std.",
+    "spielzeit": null,
+    "liste": "bibliothek",
+    "kategorie": "Nur Koop",
+    "kategorieInfo": "Story-Spiele, aber nur zu zweit",
+    "bereich": "Story-Wunsch"
+  },
+  {
+    "name": "We Were Here Forever",
+    "beschreibung": "Der größte Teil der Reihe. Ca. 10 Std.",
+    "spielzeit": null,
+    "liste": "bibliothek",
+    "kategorie": "Nur Koop",
+    "kategorieInfo": "Story-Spiele, aber nur zu zweit",
+    "bereich": "Story-Wunsch"
+  },
+  {
+    "name": "Assassin's Creed IV Black Flag",
+    "beschreibung": "Piratenleben in der Karibik mit eigenem Schiff. Kennst du schon gut.",
+    "spielzeit": "153,8 h",
+    "liste": "bibliothek",
+    "kategorie": "Open World & Herausforderung",
+    "kategorieInfo": "Große Welten zum Erkunden, Story eher Nebensache",
+    "bereich": "Für andere Laune"
+  },
+  {
+    "name": "Grand Theft Auto V",
+    "beschreibung": "Kennst du schon bestens.",
+    "spielzeit": "641,4 h",
+    "liste": "bibliothek",
+    "kategorie": "Open World & Herausforderung",
+    "kategorieInfo": "Große Welten zum Erkunden, Story eher Nebensache",
+    "bereich": "Für andere Laune"
+  },
+  {
+    "name": "The Elder Scrolls V: Skyrim",
+    "beschreibung": "Riesige Fantasy-Welt, du machst einfach, worauf du Lust hast. Hunderte Quests, Drachen, Zauber. Gut zum Abtauchen ohne Ziel.",
+    "spielzeit": "2,7 h",
+    "liste": "bibliothek",
+    "kategorie": "Open World & Herausforderung",
+    "kategorieInfo": "Große Welten zum Erkunden, Story eher Nebensache",
+    "bereich": "Für andere Laune"
+  },
+  {
+    "name": "Dark Souls III",
+    "beschreibung": "Düstere Fantasy, sehr schwere Kämpfe, Story nur angedeutet. Lohnt sich, wenn du eine echte Herausforderung willst.",
+    "spielzeit": null,
+    "liste": "bibliothek",
+    "kategorie": "Open World & Herausforderung",
+    "kategorieInfo": "Große Welten zum Erkunden, Story eher Nebensache",
+    "bereich": "Für andere Laune"
+  },
+  {
+    "name": "Satisfactory",
+    "beschreibung": "Fabriken auf einem fremden Planeten bauen, dein Lieblingsspiel.",
+    "spielzeit": "466,8 h",
+    "liste": "bibliothek",
+    "kategorie": "Bauen & Automatisieren",
+    "kategorieInfo": "Fabriken, Maschinen, Städte",
+    "bereich": "Für andere Laune"
+  },
+  {
+    "name": "Dyson Sphere Program",
+    "beschreibung": "Fabriken über ganze Sonnensysteme, bis zur Dyson-Sphäre.",
+    "spielzeit": "36,7 h",
+    "liste": "bibliothek",
+    "kategorie": "Bauen & Automatisieren",
+    "kategorieInfo": "Fabriken, Maschinen, Städte",
+    "bereich": "Für andere Laune"
+  },
+  {
+    "name": "Scrap Mechanic",
+    "beschreibung": "Fahrzeuge und Maschinen aus Bauteilen basteln, auch Koop.",
+    "spielzeit": "8 h",
+    "liste": "bibliothek",
+    "kategorie": "Bauen & Automatisieren",
+    "kategorieInfo": "Fabriken, Maschinen, Städte",
+    "bereich": "Für andere Laune"
+  },
+  {
+    "name": "Cities: Skylines",
+    "beschreibung": "Städtebau mit Verkehr, Strom und Wasser. Sehr tiefgehend.",
+    "spielzeit": "18 min",
+    "liste": "bibliothek",
+    "kategorie": "Bauen & Automatisieren",
+    "kategorieInfo": "Fabriken, Maschinen, Städte",
+    "bereich": "Für andere Laune"
+  },
+  {
+    "name": "Enshrouded",
+    "beschreibung": "Fantasy-Survival mit Basenbau und Kämpfen, schön im Koop.",
+    "spielzeit": "9,6 h",
+    "liste": "bibliothek",
+    "kategorie": "Survival",
+    "kategorieInfo": "Sammeln, bauen, überleben, oft im Koop",
+    "bereich": "Für andere Laune"
+  },
+  {
+    "name": "The Forest",
+    "beschreibung": "Flugzeugabsturz auf einer Insel mit Kannibalen. Gruselig, mit Story-Ende.",
+    "spielzeit": null,
+    "liste": "bibliothek",
+    "kategorie": "Survival",
+    "kategorieInfo": "Sammeln, bauen, überleben, oft im Koop",
+    "bereich": "Für andere Laune"
+  },
+  {
+    "name": "7 Days to Die",
+    "beschreibung": "Zombie-Survival, alle 7 Tage kommt eine große Horde.",
+    "spielzeit": "2,4 h",
+    "liste": "bibliothek",
+    "kategorie": "Survival",
+    "kategorieInfo": "Sammeln, bauen, überleben, oft im Koop",
+    "bereich": "Für andere Laune"
+  },
+  {
+    "name": "Farming Simulator 25",
+    "beschreibung": "Neuester Teil, mit Reis und asiatischer Karte.",
+    "spielzeit": "8,1 h",
+    "liste": "bibliothek",
+    "kategorie": "Simulation & Fahren",
+    "kategorieInfo": "Entspannt fahren, ernten, crashen",
+    "bereich": "Für andere Laune"
+  },
+  {
+    "name": "Farming Simulator 22",
+    "beschreibung": "Vorgänger mit Jahreszeiten.",
+    "spielzeit": "66 min",
+    "liste": "bibliothek",
+    "kategorie": "Simulation & Fahren",
+    "kategorieInfo": "Entspannt fahren, ernten, crashen",
+    "bereich": "Für andere Laune"
+  },
+  {
+    "name": "Farming Simulator 19",
+    "beschreibung": "Deinen meistgespielten Teil kennst du ja.",
+    "spielzeit": "52,4 h",
+    "liste": "bibliothek",
+    "kategorie": "Simulation & Fahren",
+    "kategorieInfo": "Entspannt fahren, ernten, crashen",
+    "bereich": "Für andere Laune"
+  },
+  {
+    "name": "BeamNG.drive",
+    "beschreibung": "Extrem realistische Unfallphysik. Sandkasten zum Ausprobieren.",
+    "spielzeit": "22 min",
+    "liste": "bibliothek",
+    "kategorie": "Simulation & Fahren",
+    "kategorieInfo": "Entspannt fahren, ernten, crashen",
+    "bereich": "Für andere Laune"
+  },
+  {
+    "name": "The Crew 2",
+    "beschreibung": "Open-World-Rennen quer durch die USA mit Autos, Booten und Flugzeugen.",
+    "spielzeit": null,
+    "liste": "bibliothek",
+    "kategorie": "Simulation & Fahren",
+    "kategorieInfo": "Entspannt fahren, ernten, crashen",
+    "bereich": "Für andere Laune"
+  },
+  {
+    "name": "Antigraviator",
+    "beschreibung": "Futuristisches Schwebe-Rennspiel.",
+    "spielzeit": "4 min",
+    "liste": "bibliothek",
+    "kategorie": "Simulation & Fahren",
+    "kategorieInfo": "Entspannt fahren, ernten, crashen",
+    "bereich": "Für andere Laune"
+  },
+  {
+    "name": "King Arthur: Knight's Tale",
+    "beschreibung": "Rundenbasierte Taktik, düstere Artus-Sage. Hat auch Story.",
+    "spielzeit": "86 min",
+    "liste": "bibliothek",
+    "kategorie": "Strategie & Rollenspiel",
+    "kategorieInfo": "Planen, taktieren, leveln",
+    "bereich": "Für andere Laune"
+  },
+  {
+    "name": "Age of Wonders III",
+    "beschreibung": "Rundenbasierte Fantasy-Strategie, Reiche aufbauen und Schlachten führen.",
+    "spielzeit": null,
+    "liste": "bibliothek",
+    "kategorie": "Strategie & Rollenspiel",
+    "kategorieInfo": "Planen, taktieren, leveln",
+    "bereich": "Für andere Laune"
+  },
+  {
+    "name": "Path of Exile",
+    "beschreibung": "Kostenloses Loot-Rollenspiel im Diablo-Stil, sehr komplex.",
+    "spielzeit": null,
+    "liste": "bibliothek",
+    "kategorie": "Strategie & Rollenspiel",
+    "kategorieInfo": "Planen, taktieren, leveln",
+    "bereich": "Für andere Laune"
+  },
+  {
+    "name": "Destiny 2",
+    "beschreibung": "Online-Shooter mit Loot, Missionen auch solo spielbar.",
+    "spielzeit": "6,3 h",
+    "liste": "bibliothek",
+    "kategorie": "Strategie & Rollenspiel",
+    "kategorieInfo": "Planen, taktieren, leveln",
+    "bereich": "Für andere Laune"
+  },
+  {
+    "name": "Phasmophobia",
+    "beschreibung": "Geisterjäger-Koop: Hinweise sammeln und den Geist bestimmen.",
+    "spielzeit": "7,2 h",
+    "liste": "bibliothek",
+    "kategorie": "Koop mit Freunden",
+    "kategorieInfo": "Am besten mit 2–4 Leuten",
+    "bereich": "Für andere Laune"
+  },
+  {
+    "name": "Demonologist",
+    "beschreibung": "Ähnlich wie Phasmophobia, mit schönerer Grafik.",
+    "spielzeit": null,
+    "liste": "bibliothek",
+    "kategorie": "Koop mit Freunden",
+    "kategorieInfo": "Am besten mit 2–4 Leuten",
+    "bereich": "Für andere Laune"
+  },
+  {
+    "name": "Left 4 Dead 2",
+    "beschreibung": "Zombie-Koop-Klassiker, zu viert durch Kampagnen.",
+    "spielzeit": null,
+    "liste": "bibliothek",
+    "kategorie": "Koop mit Freunden",
+    "kategorieInfo": "Am besten mit 2–4 Leuten",
+    "bereich": "Für andere Laune"
+  },
+  {
+    "name": "Left 4 Dead",
+    "beschreibung": "Der erste Teil.",
+    "spielzeit": null,
+    "liste": "bibliothek",
+    "kategorie": "Koop mit Freunden",
+    "kategorieInfo": "Am besten mit 2–4 Leuten",
+    "bereich": "Für andere Laune"
+  },
+  {
+    "name": "PAYDAY 2",
+    "beschreibung": "Banküberfälle im Team planen und durchziehen.",
+    "spielzeit": "9,1 h",
+    "liste": "bibliothek",
+    "kategorie": "Koop mit Freunden",
+    "kategorieInfo": "Am besten mit 2–4 Leuten",
+    "bereich": "Für andere Laune"
+  },
+  {
+    "name": "Call of Duty: Black Ops II – Zombies",
+    "beschreibung": "Wellen von Zombies überleben.",
+    "spielzeit": "3,2 h",
+    "liste": "bibliothek",
+    "kategorie": "Koop mit Freunden",
+    "kategorieInfo": "Am besten mit 2–4 Leuten",
+    "bereich": "Für andere Laune"
+  },
+  {
+    "name": "Dead by Daylight",
+    "beschreibung": "Vier Überlebende gegen einen Killer, online.",
+    "spielzeit": "3 h",
+    "liste": "bibliothek",
+    "kategorie": "Koop mit Freunden",
+    "kategorieInfo": "Am besten mit 2–4 Leuten",
+    "bereich": "Für andere Laune"
+  },
+  {
+    "name": "Counter-Strike 2",
+    "beschreibung": "Taktik-Shooter, Terroristen gegen Anti-Terror.",
+    "spielzeit": "11,5 h",
+    "liste": "bibliothek",
+    "kategorie": "Online-Shooter",
+    "kategorieInfo": "Wettkampf gegen andere Spieler",
+    "bereich": "Für andere Laune"
+  },
+  {
+    "name": "Battlefield 6",
+    "beschreibung": "Große Schlachten mit Fahrzeugen, neuester Teil.",
+    "spielzeit": null,
+    "liste": "bibliothek",
+    "kategorie": "Online-Shooter",
+    "kategorieInfo": "Wettkampf gegen andere Spieler",
+    "bereich": "Für andere Laune"
+  },
+  {
+    "name": "Battlefield 2042",
+    "beschreibung": "Vorgänger, Schlachten mit bis zu 128 Spielern.",
+    "spielzeit": null,
+    "liste": "bibliothek",
+    "kategorie": "Online-Shooter",
+    "kategorieInfo": "Wettkampf gegen andere Spieler",
+    "bereich": "Für andere Laune"
+  },
+  {
+    "name": "Call of Duty: Black Ops II – Multiplayer",
+    "beschreibung": "Klassischer CoD-Multiplayer.",
+    "spielzeit": "28 min",
+    "liste": "bibliothek",
+    "kategorie": "Online-Shooter",
+    "kategorieInfo": "Wettkampf gegen andere Spieler",
+    "bereich": "Für andere Laune"
+  },
+  {
+    "name": "PUBG: Battlegrounds",
+    "beschreibung": "Battle Royale, 100 Spieler, einer gewinnt.",
+    "spielzeit": "12 min",
+    "liste": "bibliothek",
+    "kategorie": "Online-Shooter",
+    "kategorieInfo": "Wettkampf gegen andere Spieler",
+    "bereich": "Für andere Laune"
+  },
+  {
+    "name": "Overwatch",
+    "beschreibung": "Helden-Shooter im Team, jeder mit eigenen Fähigkeiten.",
+    "spielzeit": "2,3 h",
+    "liste": "bibliothek",
+    "kategorie": "Online-Shooter",
+    "kategorieInfo": "Wettkampf gegen andere Spieler",
+    "bereich": "Für andere Laune"
+  },
+  {
+    "name": "Counter-Strike, Source, Condition Zero",
+    "beschreibung": "Ältere Teile, Condition Zero hat auch eine Solo-Kampagne.",
+    "spielzeit": null,
+    "liste": "bibliothek",
+    "kategorie": "Online-Shooter",
+    "kategorieInfo": "Wettkampf gegen andere Spieler",
+    "bereich": "Für andere Laune"
+  },
+  {
+    "name": "Day of Defeat, Team Fortress Classic, Deathmatch Classic, Ricochet, HL2 Deathmatch",
+    "beschreibung": "Uralte Valve-Multiplayer-Spiele, kaum noch Spieler.",
+    "spielzeit": null,
+    "liste": "bibliothek",
+    "kategorie": "Online-Shooter",
+    "kategorieInfo": "Wettkampf gegen andere Spieler",
+    "bereich": "Für andere Laune"
+  },
+  {
+    "name": "Heroes & Generals, Infestation: The New Z",
+    "beschreibung": "Server womöglich schon abgeschaltet.",
+    "spielzeit": "4 min",
+    "liste": "bibliothek",
+    "kategorie": "Online-Shooter",
+    "kategorieInfo": "Wettkampf gegen andere Spieler",
+    "bereich": "Für andere Laune"
+  },
+  {
+    "name": "Mortal Kombat X",
+    "beschreibung": "Brutales Prügelspiel, hat auch einen Story-Modus.",
+    "spielzeit": "6,3 h",
+    "liste": "bibliothek",
+    "kategorie": "Sonstiges",
+    "kategorieInfo": "Party, Prügeln, Training",
+    "bereich": "Für andere Laune"
+  },
+  {
+    "name": "SMITE",
+    "beschreibung": "MOBA mit Göttern aus Mythologien, Online im Team.",
+    "spielzeit": null,
+    "liste": "bibliothek",
+    "kategorie": "Sonstiges",
+    "kategorieInfo": "Party, Prügeln, Training",
+    "bereich": "Für andere Laune"
+  },
+  {
+    "name": "Golf It!",
+    "beschreibung": "Verrücktes Minigolf mit Freunden.",
+    "spielzeit": "1 min",
+    "liste": "bibliothek",
+    "kategorie": "Sonstiges",
+    "kategorieInfo": "Party, Prügeln, Training",
+    "bereich": "Für andere Laune"
+  },
+  {
+    "name": "Stick Fight: The Game",
+    "beschreibung": "Chaotisches Strichmännchen-Prügeln für bis zu 4.",
+    "spielzeit": "3 min",
+    "liste": "bibliothek",
+    "kategorie": "Sonstiges",
+    "kategorieInfo": "Party, Prügeln, Training",
+    "bereich": "Für andere Laune"
+  },
+  {
+    "name": "Ball Grabbers",
+    "beschreibung": "Physik-Partyspiel.",
+    "spielzeit": "34 min",
+    "liste": "bibliothek",
+    "kategorie": "Sonstiges",
+    "kategorieInfo": "Party, Prügeln, Training",
+    "bereich": "Für andere Laune"
+  },
+  {
+    "name": "Aimlabs",
+    "beschreibung": "Zieltraining für Shooter.",
+    "spielzeit": "8,5 h",
+    "liste": "bibliothek",
+    "kategorie": "Sonstiges",
+    "kategorieInfo": "Party, Prügeln, Training",
+    "bereich": "Für andere Laune"
+  },
+  {
+    "name": "The Lab",
+    "beschreibung": "Kostenlose VR-Minispiele von Valve, nur mit VR-Brille.",
+    "spielzeit": null,
+    "liste": "bibliothek",
+    "kategorie": "Sonstiges",
+    "kategorieInfo": "Party, Prügeln, Training",
+    "bereich": "Für andere Laune"
+  },
+  {
+    "name": "The Last of Us Part I",
+    "beschreibung": "Joel bringt die junge Ellie durch ein von Pilz-Infizierten zerstörtes Amerika. Eine der besten Storys überhaupt, linear, Schwierigkeit fein einstellbar. Ca. 15 Std.",
+    "spielzeit": null,
+    "liste": "wunschliste",
+    "kategorie": "Pflichtkäufe",
+    "kategorieInfo": "Passen perfekt zu dem, was du suchst",
+    "bereich": "Wunschliste"
+  },
+  {
+    "name": "The Last of Us Part II Remastered",
+    "beschreibung": "Fortsetzung, eine Rache-Geschichte. Noch intensiver und emotional hart. Ca. 25 Std.",
+    "spielzeit": null,
+    "liste": "wunschliste",
+    "kategorie": "Pflichtkäufe",
+    "kategorieInfo": "Passen perfekt zu dem, was du suchst",
+    "bereich": "Wunschliste"
+  },
+  {
+    "name": "Uncharted: Legacy of Thieves Collection",
+    "beschreibung": "Uncharted 4 und Lost Legacy: Schatzsuche, Klettern und Action wie im Kinofilm. Zusammen ca. 25 Std.",
+    "spielzeit": null,
+    "liste": "wunschliste",
+    "kategorie": "Pflichtkäufe",
+    "kategorieInfo": "Passen perfekt zu dem, was du suchst",
+    "bereich": "Wunschliste"
+  },
+  {
+    "name": "A Plague Tale: Innocence",
+    "beschreibung": "Frankreich im Mittelalter: Eine Schwester beschützt ihren kleinen Bruder vor Inquisition und Rattenschwärmen. Eher Schleichen als Kämpfen. Ca. 12 Std.",
+    "spielzeit": null,
+    "liste": "wunschliste",
+    "kategorie": "Pflichtkäufe",
+    "kategorieInfo": "Passen perfekt zu dem, was du suchst",
+    "bereich": "Wunschliste"
+  },
+  {
+    "name": "A Plague Tale: Requiem",
+    "beschreibung": "Fortsetzung, größer und noch schöner. Ca. 18 Std.",
+    "spielzeit": null,
+    "liste": "wunschliste",
+    "kategorie": "Pflichtkäufe",
+    "kategorieInfo": "Passen perfekt zu dem, was du suchst",
+    "bereich": "Wunschliste"
+  },
+  {
+    "name": "Detroit: Become Human",
+    "beschreibung": "Drei Androiden im Detroit der Zukunft, deine Entscheidungen verändern die Story stark. Wie ein interaktiver Film. Ca. 12 Std.",
+    "spielzeit": null,
+    "liste": "wunschliste",
+    "kategorie": "Pflichtkäufe",
+    "kategorieInfo": "Passen perfekt zu dem, was du suchst",
+    "bereich": "Wunschliste"
+  },
+  {
+    "name": "Cyberpunk 2077",
+    "beschreibung": "Söldner in einer Zukunftsstadt mit einem Chip im Kopf, der dich langsam umbringt. Starke Hauptstory, Nebenkram optional. Hauptstory ca. 25 Std.",
+    "spielzeit": null,
+    "liste": "wunschliste",
+    "kategorie": "Pflichtkäufe",
+    "kategorieInfo": "Passen perfekt zu dem, was du suchst",
+    "bereich": "Wunschliste"
+  },
+  {
+    "name": "Until Dawn",
+    "beschreibung": "Acht Jugendliche in einer Berghütte, ein Killer geht um. Jede Figur kann sterben. Horrorfilm zum Mitspielen. Ca. 9 Std.",
+    "spielzeit": null,
+    "liste": "wunschliste",
+    "kategorie": "Story ohne Kampf",
+    "kategorieInfo": "Spannung durch Geschichte und Entscheidungen",
+    "bereich": "Wunschliste"
+  },
+  {
+    "name": "The Quarry",
+    "beschreibung": "Vom selben Studio: Betreuer eines Sommercamps in einer Horrornacht. Ca. 10 Std.",
+    "spielzeit": null,
+    "liste": "wunschliste",
+    "kategorie": "Story ohne Kampf",
+    "kategorieInfo": "Spannung durch Geschichte und Entscheidungen",
+    "bereich": "Wunschliste"
+  },
+  {
+    "name": "Life is Strange (Teil 1)",
+    "beschreibung": "Max entdeckt, dass sie die Zeit zurückspulen kann. Der Klassiker, an den Before the Storm anknüpft. Ca. 15 Std.",
+    "spielzeit": null,
+    "liste": "wunschliste",
+    "kategorie": "Story ohne Kampf",
+    "kategorieInfo": "Spannung durch Geschichte und Entscheidungen",
+    "bereich": "Wunschliste"
+  },
+  {
+    "name": "Life is Strange: True Colors",
+    "beschreibung": "Neue Hauptfigur, die Gefühle anderer sieht. Eigenständige Kleinstadt-Story. Ca. 12 Std.",
+    "spielzeit": null,
+    "liste": "wunschliste",
+    "kategorie": "Story ohne Kampf",
+    "kategorieInfo": "Spannung durch Geschichte und Entscheidungen",
+    "bereich": "Wunschliste"
+  },
+  {
+    "name": "Firewatch",
+    "beschreibung": "Als Feuerwächter allein im Wald, nur per Funk mit deiner Chefin verbunden, dann passieren seltsame Dinge. Ca. 4 Std.",
+    "spielzeit": null,
+    "liste": "wunschliste",
+    "kategorie": "Story ohne Kampf",
+    "kategorieInfo": "Spannung durch Geschichte und Entscheidungen",
+    "bereich": "Wunschliste"
+  },
+  {
+    "name": "What Remains of Edith Finch",
+    "beschreibung": "Du erkundest das Haus deiner Familie und erlebst, wie jedes Mitglied gestorben ist. Kurz und einzigartig erzählt. Ca. 2 Std.",
+    "spielzeit": null,
+    "liste": "wunschliste",
+    "kategorie": "Story ohne Kampf",
+    "kategorieInfo": "Spannung durch Geschichte und Entscheidungen",
+    "bereich": "Wunschliste"
+  },
+  {
+    "name": "God of War (2018)",
+    "beschreibung": "Kratos und sein Sohn auf Reise durch die nordische Mythologie. Großartige Vater-Sohn-Story, ohne einen einzigen Kameraschnitt erzählt. Ca. 25 Std.",
+    "spielzeit": null,
+    "liste": "wunschliste",
+    "kategorie": "Mehr Action, gute Story",
+    "kategorieInfo": "Linear oder halb offen, Schwierigkeit einstellbar",
+    "bereich": "Wunschliste"
+  },
+  {
+    "name": "Marvel's Spider-Man Remastered",
+    "beschreibung": "Durch New York schwingen fühlt sich fantastisch an. Open World, aber die Story zieht dich durch. Ca. 17 Std.",
+    "spielzeit": null,
+    "liste": "wunschliste",
+    "kategorie": "Mehr Action, gute Story",
+    "kategorieInfo": "Linear oder halb offen, Schwierigkeit einstellbar",
+    "bereich": "Wunschliste"
+  },
+  {
+    "name": "Metro Exodus",
+    "beschreibung": "Fortsetzung deiner Metro-Teile: Raus aus den Tunneln, mit dem Zug durch Russland. Teils offen, aber mit klarer Story. Ca. 20 Std.",
+    "spielzeit": null,
+    "liste": "wunschliste",
+    "kategorie": "Mehr Action, gute Story",
+    "kategorieInfo": "Linear oder halb offen, Schwierigkeit einstellbar",
+    "bereich": "Wunschliste"
+  },
+  {
+    "name": "Shadow of the Tomb Raider",
+    "beschreibung": "Fortsetzung von Rise, Lara im Dschungel von Südamerika. Ca. 15 Std.",
+    "spielzeit": null,
+    "liste": "wunschliste",
+    "kategorie": "Mehr Action, gute Story",
+    "kategorieInfo": "Linear oder halb offen, Schwierigkeit einstellbar",
+    "bereich": "Wunschliste"
+  },
+  {
+    "name": "Hellblade: Senua's Sacrifice",
+    "beschreibung": "Eine Kriegerin mit Psychose auf dem Weg in die nordische Unterwelt. Sehr intensiv, mit Kopfhörern spielen. Wenige Kämpfe. Ca. 8 Std.",
+    "spielzeit": null,
+    "liste": "wunschliste",
+    "kategorie": "Mehr Action, gute Story",
+    "kategorieInfo": "Linear oder halb offen, Schwierigkeit einstellbar",
+    "bereich": "Wunschliste"
+  },
+  {
+    "name": "Alan Wake 2",
+    "beschreibung": "Horror-Thriller: Ein Autor ist in seiner eigenen Geschichte gefangen. Plattform vor dem Kauf prüfen, war lange nur im Epic Store. Ca. 20 Std.",
+    "spielzeit": null,
+    "liste": "wunschliste",
+    "kategorie": "Mehr Action, gute Story",
+    "kategorieInfo": "Linear oder halb offen, Schwierigkeit einstellbar",
+    "bereich": "Wunschliste"
+  }
+]
