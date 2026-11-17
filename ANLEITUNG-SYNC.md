@@ -13,7 +13,7 @@ Alles ist kostenlos. Zeitaufwand: Teil 1 etwa 15 Minuten, Teil 2 etwa 15 Minuten
 1. Öffne https://supabase.com und klicke auf **Start your project**.
    Am einfachsten meldest du dich mit **Continue with GitHub** an.
 2. Klicke auf **New project**:
-   - **Name:** `mygames`
+   - **Name:** `privat` (das Projekt kann später auch deine anderen privaten Apps aufnehmen)
    - **Database Password:** auf **Generate a password** klicken und das Passwort
      in deinem Passwort-Manager speichern. Du brauchst es für die App nicht, aber für Notfälle.
    - **Region:** `Central EU (Frankfurt)`
@@ -29,7 +29,10 @@ Alles ist kostenlos. Zeitaufwand: Teil 1 etwa 15 Minuten, Teil 2 etwa 15 Minuten
 Damit landest du nach dem Klick auf den Bestätigungslink in der E-Mail in deiner App.
 1. Links **Authentication** öffnen und dann **URL Configuration**.
 2. Bei **Site URL** `https://mygames.chaoten.online` eintragen und **Save** klicken.
+   (Es gibt nur eine Site URL pro Projekt. Das ist nur die Standard-Adresse, wenn eine App keine eigene angibt.
+   Die Spieleliste gibt ihre Adresse selbst mit.)
 3. Bei **Redirect URLs** auf **Add URL** klicken, `https://mygames.chaoten.online/**` eintragen und speichern.
+   Kommen später weitere private Apps dazu, trägst du deren Adressen hier zusätzlich ein.
 
 ### 4. Zugangsdaten an die App geben
 1. Links unten **Project Settings** (Zahnrad) öffnen und dann **API Keys**.
@@ -60,6 +63,13 @@ grün = abgeglichen, blau blinkend = läuft gerade, orange = offline (wird nachg
 Nachdem dein Konto angelegt ist:
 **Authentication → Sign In / Providers**, dort **Allow new users to sign up** ausschalten und speichern.
 Dann kann sich niemand sonst in deinem Projekt ein Konto anlegen.
+
+### Weitere private Apps im selben Projekt
+- Jede App bekommt ihre **eigenen Tabellen** mit eigenen Zugriffsregeln (Row Level Security).
+  Die Spieleliste nutzt nur die Tabelle `spielelisten` und fasst nichts anderes an.
+- Du hast **ein Konto für alle Apps**: dieselbe E-Mail und dasselbe Passwort.
+- Die Gratis-Grenzen (z. B. 500 MB Datenbank) gelten für das ganze Projekt, also für alle Apps zusammen.
+  Die Spieleliste braucht davon weniger als 1 MB.
 
 ### Gut zu wissen
 - Kostenlose Supabase-Projekte werden nach etwa einer Woche **ohne jede Nutzung pausiert**.
