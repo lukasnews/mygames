@@ -41,6 +41,18 @@
   </header>
 
   <main>
+    <aside class="tipp" id="tipp" hidden>
+      <div class="tipp-kopf">
+        <span class="tipp-symbol" aria-hidden="true">💡</span>
+        <h2 id="tipp-titel">Tipp</h2>
+        <button class="icon-knopf" id="tipp-bearbeiten" aria-label="Tipp bearbeiten" title="Tipp bearbeiten">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 17.2V20h2.8l8.3-8.3-2.8-2.8L4 17.2zm13.7-7.6a1 1 0 0 0 0-1.4l-1.9-1.9a1 1 0 0 0-1.4 0l-1.4 1.4 2.8 2.8 1.9-1.9z"/></svg>
+        </button>
+      </div>
+      <p id="tipp-text"></p>
+    </aside>
+    <button class="link-knopf" id="tipp-hinzufuegen" hidden>💡 Tipp hinzufügen</button>
+
     <section class="werkzeuge">
       <label class="suche">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.5 3a7.5 7.5 0 0 1 5.9 12.1l4.8 4.8-1.4 1.4-4.8-4.8A7.5 7.5 0 1 1 10.5 3zm0 2a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11z"/></svg>
@@ -133,6 +145,27 @@
         <span class="platz"></span>
         <button type="button" class="knopf" data-schliessen>Abbrechen</button>
         <button type="submit" class="knopf haupt" value="ok">Speichern</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Tipp bearbeiten -->
+  <dialog id="dlg-tipp" class="blatt">
+    <form method="dialog" id="form-tipp">
+      <h2 id="tipp-dialog-titel">Tipp bearbeiten</h2>
+      <label class="feld">Überschrift
+        <input name="titel" maxlength="60" placeholder="z. B. Start-Tipp">
+      </label>
+      <label class="feld">Text
+        <textarea name="text" rows="5" maxlength="600"></textarea>
+      </label>
+      <p class="leise klein">Spielnamen aus deiner Liste werden im Tipp automatisch antippbar.</p>
+      <button type="button" class="link-knopf" id="tipp-standard">Ursprünglichen Tipp wiederherstellen</button>
+      <div class="knopf-zeile">
+        <button type="button" class="knopf gefahr" id="tipp-entfernen">Entfernen</button>
+        <span class="platz"></span>
+        <button type="button" class="knopf" data-schliessen>Abbrechen</button>
+        <button type="submit" class="knopf haupt">Speichern</button>
       </div>
     </form>
   </dialog>

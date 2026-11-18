@@ -6,7 +6,7 @@
    eingerichtet – über Supabase zwischen Geräten abgeglichen.
    ========================================================= */
 
-const APP_VERSION = '2.1.0';
+const APP_VERSION = '2.2.0';
 const DATEN_KEY = 'spieleliste.daten.v1';
 const ANSICHT_KEY = 'spieleliste.ansicht.v1';
 const SYNC_KEY = 'spieleliste.sync.v1';
@@ -30,6 +30,16 @@ const STATUS_TEXT = {
 const STATUS_RANG = { angefangen: 0, offen: 1, durchgespielt: 2, abgebrochen: 3 };
 const ERLEDIGT = new Set(['durchgespielt', 'abgebrochen']);
 const STANDARD_ZIEL_NACH_KAUF = 'Top: genau dein Ding';
+const STANDARD_TIPPS = {
+  bibliothek: {
+    titel: 'Start-Tipp',
+    text: 'Metro 2033 Redux für kurz und spannend, The Witcher 3 für eine große Story.',
+  },
+  wunschliste: {
+    titel: 'Kauf-Tipp',
+    text: 'Zuerst The Last of Us Part I und Detroit: Become Human. Im Steam-Sale gibt es fast alles davon stark reduziert, also auf die Wunschliste setzen und abwarten.',
+  },
+};
 
 let daten = null;
 let ansicht = {
@@ -186,11 +196,21 @@ function normalisieren(roh, { startdaten = false } = {}) {
     for (const [id, zeit] of Object.entries(roh.geloescht)) geloescht[id] = zeitpunkt(zeit);
   }
 
+  // Tipp-Kästen je Reiter (fehlen sie, gelten die Standard-Tipps)
+  const tipps = {};
+  for (const liste of Object.keys(STANDARD_TIPPS)) {
+    const t = roh?.tipps?.[liste];
+    tipps[liste] = t && typeof t === 'object'
+      ? { titel: String(t.titel ?? ''), text: String(t.text ?? ''), geaendert: zeitpunkt(t.geaendert) }
+      : { ...STANDARD_TIPPS[liste], geaendert: URALT };
+  }
+
   return {
     version: 2,
     kategorien,
     spiele,
     geloescht,
+    tipps,
     geaendert: roh?.geaendert ?? null,
     letzterExport: roh?.letzterExport ?? null,
     letzterSync: roh?.letzterSync ?? null,
@@ -213,12 +233,13 @@ function vergleichsText(d) {
     kategorien: [...d.kategorien].sort((a, b) => a.name.localeCompare(b.name)),
     spiele: [...d.spiele].sort((a, b) => a.id.localeCompare(b.id)),
     geloescht: d.geloescht,
+    tipps: d.tipps,
   });
 }
 
 // Der Teil der Daten, der synchronisiert und exportiert wird
 function inhalt(d) {
-  return { app: 'spieleliste', version: 2, kategorien: d.kategorien, spiele: d.spiele, geloescht: d.geloescht };
+  return { app: 'spieleliste', version: 2, kategorien: d.kategorien, spiele: d.spiele, geloescht: d.geloescht, tipps: d.tipps };
 }
 
 async function startdatenLaden() {
@@ -324,7 +345,16 @@ function zusammenfuehren(lokal, fern) {
     }
   }
 
-  return { ...lokal, kategorien, spiele, geloescht };
+  // Tipps: je Reiter gewinnt die neuere Änderung
+  const tipps = {};
+  for (const liste of new Set([...Object.keys(lokal.tipps ?? {}), ...Object.keys(fern.tipps ?? {})])) {
+    const a = lokal.tipps?.[liste];
+    const b = fern.tipps?.[liste];
+    if (!a || !b) { tipps[liste] = a ?? b; continue; }
+    tipps[liste] = b.geaendert > a.geaendert || (b.geaendert === a.geaendert && stabil(b) > stabil(a)) ? b : a;
+  }
+
+  return { ...lokal, kategorien, spiele, geloescht, tipps };
 }
 
 /* ---------- Rückgängig ---------- */
@@ -516,7 +546,98 @@ function geradeDabeiHtml() {
     </div>`;
 }
 
+/* ---------- Tipp-Kasten ---------- */
+
+// Macht Spielnamen im Tipp antippbar (auch Kurzformen wie „The Witcher 3“ für „The Witcher 3: Wild Hunt“)
+function tippMitLinks(text) {
+  const muster = new Map();
+  const kurzZaehler = new Map();
+  for (const s of daten.spiele) {
+    const kurz = s.name.split(':')[0].trim();
+    if (kurz !== s.name && kurz.length >= 6) kurzZaehler.set(kurz, (kurzZaehler.get(kurz) ?? 0) + 1);
+  }
+  for (const s of daten.spiele) {
+    muster.set(s.name, s.id);
+    const kurz = s.name.split(':')[0].trim();
+    if (kurzZaehler.get(kurz) === 1 && !muster.has(kurz)) muster.set(kurz, s.id);
+  }
+  const namen = [...muster.keys()].sort((a, b) => b.length - a.length);
+  if (!namen.length) return esc(text);
+  const teile = namen.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+  const regex = new RegExp('(?<![\\p{L}\\p{N}])(' + teile + ')(?![\\p{L}\\p{N}])', 'gu');
+  let html = '';
+  let pos = 0;
+  for (const treffer of text.matchAll(regex)) {
+    html += esc(text.slice(pos, treffer.index));
+    html += `<button class="tipp-spiel" data-spiel-id="${esc(muster.get(treffer[0]))}">${esc(treffer[0])}</button>`;
+    pos = treffer.index + treffer[0].length;
+  }
+  return html + esc(text.slice(pos));
+}
+
+function tippRendern() {
+  const tipp = daten.tipps?.[ansicht.reiter];
+  const leer = !tipp || !(tipp.titel.trim() || tipp.text.trim());
+  $('#tipp').hidden = leer;
+  $('#tipp-hinzufuegen').hidden = !leer;
+  if (leer) return;
+  $('#tipp-titel').textContent = tipp.titel.trim() || 'Tipp';
+  $('#tipp-text').innerHTML = tippMitLinks(tipp.text.trim());
+}
+
+function tippDialogOeffnen() {
+  const tipp = daten.tipps[ansicht.reiter];
+  const standard = STANDARD_TIPPS[ansicht.reiter];
+  const form = $('#form-tipp');
+  form.titel.value = tipp.titel;
+  form.text.value = tipp.text;
+  $('#tipp-dialog-titel').textContent = `Tipp für „${ansicht.reiter === 'bibliothek' ? 'Bibliothek' : 'Wunschliste'}“`;
+  $('#tipp-standard').hidden = tipp.titel === standard.titel && tipp.text === standard.text;
+  $('#tipp-entfernen').hidden = !(tipp.titel || tipp.text);
+  $('#dlg-tipp').showModal();
+}
+
+function tippSetzen(titel, text) {
+  daten.tipps[ansicht.reiter] = { titel: titel.trim(), text: text.trim(), geaendert: jetzt() };
+  speichern();
+  rendern();
+}
+
+function tippEinrichten() {
+  $('#tipp-bearbeiten').addEventListener('click', tippDialogOeffnen);
+  $('#tipp-hinzufuegen').addEventListener('click', tippDialogOeffnen);
+  $('#tipp-text').addEventListener('click', (e) => {
+    const knopf = e.target.closest('[data-spiel-id]');
+    if (!knopf) return;
+    const s = daten.spiele.find((x) => x.id === knopf.dataset.spielId);
+    if (!s) return;
+    // Filter, die das Spiel verstecken würden, aufheben
+    suchtext = ''; $('#suche').value = '';
+    ansicht.status = ''; ansicht.kategorie = ''; ansicht.erledigteAus = false;
+    aufgeklappt.add(s.id);
+    zeigeSpiel(s.id);
+  });
+  $('#form-tipp').addEventListener('submit', (e) => {
+    e.preventDefault();
+    tippSetzen(e.target.titel.value, e.target.text.value);
+    $('#dlg-tipp').close();
+    zeigeHinweis('Tipp gespeichert');
+  });
+  $('#tipp-entfernen').addEventListener('click', () => {
+    sicherungMachen();
+    tippSetzen('', '');
+    $('#dlg-tipp').close();
+    zeigeHinweis('Tipp entfernt', true);
+  });
+  $('#tipp-standard').addEventListener('click', () => {
+    const f = $('#form-tipp');
+    f.titel.value = STANDARD_TIPPS[ansicht.reiter].titel;
+    f.text.value = STANDARD_TIPPS[ansicht.reiter].text;
+  });
+}
+
 function rendern() {
+  tippRendern();
   for (const knopf of $$('.reiter-knopf')) {
     knopf.setAttribute('aria-selected', String(knopf.dataset.reiter === ansicht.reiter));
   }
@@ -1369,6 +1490,7 @@ function datenErsetzen(neu) {
   for (const s of daten.spiele) if (!neueIds.has(s.id)) geloescht[s.id] = t;
   for (const s of neu.spiele) { s.geaendert = t; delete geloescht[s.id]; }
   neu.geloescht = geloescht;
+  for (const tipp of Object.values(neu.tipps)) tipp.geaendert = t;
   neu.letzterExport = daten.letzterExport;
   neu.letzterSync = daten.letzterSync;
   sicherungMachen();
@@ -1570,6 +1692,7 @@ async function start() {
   wuerfelDialogEinrichten();
   menueEinrichten();
   syncDialogEinrichten();
+  tippEinrichten();
   bedienungEinrichten();
   try {
     await laden();
