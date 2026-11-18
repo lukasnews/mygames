@@ -106,6 +106,10 @@ Wenn du **„Gesamte Spielzeit immer privat halten“** angehakt hast, nimm den 
 3. Den Beispielcode im Editor komplett löschen und den Inhalt von
    `supabase/functions/steam-spielzeit/index.ts` aus diesem Projekt einfügen.
 4. Unten rechts auf **Deploy function** klicken.
+5. **Wichtig:** Schau dir danach in der Liste unter **Edge Functions** die **URL** der Funktion an.
+   Sie endet auf `/functions/v1/<name>`. Supabase vergibt diesen Namen manchmal selbst (z. B. `rapid-task`),
+   auch wenn als Name „steam-spielzeit“ angezeigt wird. Steht dort etwas anderes als `steam-spielzeit`,
+   muss dieser Name in `config.js` bei `steamFunktion` stehen. Sag Claude einfach Bescheid.
 
 ### 5. Geheimnisse hinterlegen
 **Edge Functions → Secrets** (oder **Project Settings → Edge Functions**), dann **Add new secret**:

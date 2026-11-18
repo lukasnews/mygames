@@ -6,7 +6,7 @@
    eingerichtet – über Supabase zwischen Geräten abgeglichen.
    ========================================================= */
 
-const APP_VERSION = '2.2.2';
+const APP_VERSION = '2.2.3';
 const DATEN_KEY = 'spieleliste.daten.v1';
 const ANSICHT_KEY = 'spieleliste.ansicht.v1';
 const SYNC_KEY = 'spieleliste.sync.v1';
@@ -30,6 +30,11 @@ const STATUS_TEXT = {
 const STATUS_RANG = { angefangen: 0, offen: 1, durchgespielt: 2, abgebrochen: 3 };
 const ERLEDIGT = new Set(['durchgespielt', 'abgebrochen']);
 const STANDARD_ZIEL_NACH_KAUF = 'Top: genau dein Ding';
+
+// Name der Steam-Funktion, wie er in ihrer Adresse steht (…/functions/v1/<name>)
+function steamFunktion() {
+  return (window.SPIELE_CONFIG?.steamFunktion || 'steam-spielzeit').trim();
+}
 const STANDARD_TIPPS = {
   bibliothek: {
     titel: 'Start-Tipp',
@@ -1300,10 +1305,10 @@ function fehlerText(e) {
   if (/signups not allowed|Signups not allowed/i.test(m)) return 'Neue Konten sind in Supabase gesperrt.';
   if (/Failed to send a request to the Edge Function|Requested function was not found|NOT_FOUND/i.test(m)) {
     return navigator.onLine
-      ? 'Die Steam-Funktion ist in Supabase nicht erreichbar. Meist ist sie noch nicht angelegt oder heißt nicht genau „steam-spielzeit“ (Anleitung Teil 2, Schritt 4). Ist sie angelegt, schau in Supabase unter Edge Functions → steam-spielzeit → Logs nach einem Fehler.'
+      ? `Die Steam-Funktion ist in Supabase nicht erreichbar. Die App sucht sie unter „…/functions/v1/${steamFunktion()}“. Stimmt das Ende der Adresse in Supabase (Edge Functions) nicht damit überein, muss der Name in config.js angepasst werden. Passt er, schau in Supabase unter Edge Functions → Logs nach einem Fehler.`
       : 'Du bist offline. Die Steam-Spielzeiten lassen sich nur mit Internet holen.';
   }
-  if (/non-2xx status code/i.test(m)) return 'Die Steam-Funktion in Supabase hat einen Fehler gemeldet. Details stehen in Supabase unter Edge Functions → steam-spielzeit → Logs.';
+  if (/non-2xx status code/i.test(m)) return 'Die Steam-Funktion in Supabase hat einen Fehler gemeldet. Details stehen in Supabase unter Edge Functions → Logs.';
   if (/Failed to fetch|NetworkError/i.test(m)) return 'Keine Verbindung zu Supabase. Bist du online? Stimmt die Project URL?';
   return m;
 }
@@ -1417,7 +1422,7 @@ async function steamHolen() {
   knopf.textContent = 'Frage Steam …';
   const box = $('#steam-ergebnis');
   try {
-    const { data, error } = await sync.client.functions.invoke('steam-spielzeit', { method: 'POST', body: {} });
+    const { data, error } = await sync.client.functions.invoke(steamFunktion(), { method: 'POST', body: {} });
     if (error) {
       let detail = error.message;
       try { detail = (await error.context?.json())?.fehler || detail; } catch { /* egal */ }

@@ -4,4 +4,7 @@
 window.SPIELE_CONFIG = {
   supabaseUrl: 'https://hxstggbkslefostpxylx.supabase.co',
   supabaseKey: 'sb_publishable_go8VuTL91IRl12sEar1jfw_ZM7-S4d-',
+  // Name der Steam-Funktion so, wie er am Ende ihrer Adresse steht:
+  // https://…supabase.co/functions/v1/rapid-task  →  'rapid-task'
+  steamFunktion: 'rapid-task',
 };
