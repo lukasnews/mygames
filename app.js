@@ -6,7 +6,7 @@
    eingerichtet – über Supabase zwischen Geräten abgeglichen.
    ========================================================= */
 
-const APP_VERSION = '2.0.0';
+const APP_VERSION = '2.1.0';
 const DATEN_KEY = 'spieleliste.daten.v1';
 const ANSICHT_KEY = 'spieleliste.ansicht.v1';
 const SYNC_KEY = 'spieleliste.sync.v1';
@@ -456,15 +456,21 @@ function spielHtml(s, kontext = {}) {
   }
 
   const steamText = s.liste === 'wunschliste' ? 'Preis auf Steam' : 'Steam';
+  const meta = [];
+  if (s.spielzeit) meta.push(`<span>⏱ Bisher gespielt: ${esc(s.spielzeit)}</span>`);
+  if (s.status === 'durchgespielt' && s.durchgespieltAm) {
+    meta.push(`<span>✓ Durchgespielt am ${new Date(s.durchgespieltAm).toLocaleDateString('de-DE')}</span>`);
+  }
   return `
     <article class="spiel" data-id="${esc(s.id)}">
       <div class="spiel-kopf">
         <div class="spiel-name">${esc(s.name)}</div>
-        <a class="klein-knopf" href="${esc(steamLink(s))}" target="_blank" rel="noopener" aria-label="${esc(s.name)} auf Steam öffnen">${steamText} ↗</a>
         <button class="klein-knopf" data-aktion="bearbeiten" aria-label="${esc(s.name)} bearbeiten">${STIFT}</button>
       </div>
       ${s.beschreibung ? `<p class="spiel-beschr">${esc(s.beschreibung)}</p>` : ''}
-      ${s.spielzeit ? `<div class="spiel-meta"><span>⏱ Bisher gespielt: ${esc(s.spielzeit)}</span></div>` : ''}
+      <div class="spiel-meta">${meta.join('')}
+        <a class="steam-link" href="${esc(steamLink(s))}" target="_blank" rel="noopener" aria-label="${esc(s.name)} auf Steam öffnen (${steamText})">${steamText} ↗</a>
+      </div>
       ${s.notiz ? `<div class="spiel-notiz">${esc(s.notiz)}</div>` : ''}
       <div class="spiel-aktionen">${unten}</div>
       ${ansicht.kompakt && !reihenfolgeModus ? '<button class="link-knopf zuklappen" data-aktion="zuklappen">▲ Weniger anzeigen</button>' : ''}
@@ -528,7 +534,10 @@ function rendern() {
   $('#erledigte-zeile').hidden = !istBib;
   $('#erledigte-aus').checked = ansicht.erledigteAus;
   $('#wuerfel-knopf').hidden = !istBib || reihenfolgeModus;
+  $('#sortierung option[value="status"]').hidden = !istBib;
+  if (!istBib && ansicht.sortierung === 'status') ansicht.sortierung = 'eigene';
   $('#sortierung').value = ansicht.sortierung;
+  $('#filter-zuruecksetzen').hidden = !filterAktiv() || reihenfolgeModus;
   $('#sortierung').disabled = reihenfolgeModus;
   $('#kompakt-knopf').setAttribute('aria-pressed', String(ansicht.kompakt));
   $('#reihenfolge-knopf').setAttribute('aria-pressed', String(reihenfolgeModus));
@@ -566,7 +575,7 @@ function rendern() {
   }
   if (!treffer) {
     html = aktiv
-      ? '<p class="leer">Keine Spiele gefunden.<br>Probier eine andere Suche oder setz die Filter zurück.</p>'
+      ? '<p class="leer">Keine Spiele gefunden.<br><button class="knopf" data-filter-zuruecksetzen>Filter zurücksetzen</button></p>'
       : '<p class="leer">Hier ist noch nichts.<br>Tippe auf <b>+</b>, um ein Spiel hinzuzufügen.</p>';
   }
   $('#liste').innerHTML = html;
@@ -999,7 +1008,7 @@ function statistikOeffnen() {
       <div class="legende">${legende}</div>
     </div>
     ${meistgespielt.length ? `<div><h3>Meistgespielt</h3><ol>${meistgespielt.map((s) => `<li>${esc(s.name)} <span>– ${esc(s.spielzeit)}</span></li>`).join('')}</ol></div>` : ''}
-    ${lieblinge.length ? `<div><h3>Deine Lieblinge</h3><ol>${lieblinge.map((s) => `<li>${esc(s.name)} <span>– ${'★'.repeat(s.bewertung)}</span></li>`).join('')}</ol></div>` : ''}
+    ${lieblinge.length ? `<div><h3>Deine Lieblinge</h3><ol>${lieblinge.map((s) => `<li>${esc(s.name)} <span class="gold" aria-label="${s.bewertung} Sterne">${'★'.repeat(s.bewertung)}</span></li>`).join('')}</ol></div>` : ''}
     <div><h3>Fortschritt je Kategorie</h3><div class="statistik">${katZeilen}</div></div>`;
   $('#dlg-statistik').showModal();
 }
@@ -1195,8 +1204,15 @@ function syncDialogEinrichten() {
     syncDialogAktualisieren();
   });
 
+  const clientDa = () => {
+    if (sync.client) return true;
+    syncMeldung('Keine Verbindung zu Supabase. Prüfe Project URL und Key oder lade die App neu.', true);
+    return false;
+  };
+
   $('#sync-anmelden').addEventListener('submit', async (e) => {
     e.preventDefault();
+    if (!clientDa()) return;
     const f = e.target;
     syncMeldung('Melde an …');
     const { error } = await sync.client.auth.signInWithPassword({ email: f.email.value.trim(), password: f.passwort.value });
@@ -1207,7 +1223,7 @@ function syncDialogEinrichten() {
 
   $('#sync-registrieren').addEventListener('click', async () => {
     const f = $('#sync-anmelden');
-    if (!f.reportValidity()) return;
+    if (!f.reportValidity() || !clientDa()) return;
     syncMeldung('Lege Konto an …');
     const { data, error } = await sync.client.auth.signUp({
       email: f.email.value.trim(), password: f.passwort.value,
@@ -1221,6 +1237,7 @@ function syncDialogEinrichten() {
   $('#sync-passwort-vergessen').addEventListener('click', async () => {
     const email = $('#sync-anmelden').email.value.trim();
     if (!email) { syncMeldung('Trag zuerst deine E-Mail-Adresse ein.', true); return; }
+    if (!clientDa()) return;
     const { error } = await sync.client.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname });
     syncMeldung(error ? fehlerText(error) : 'Du bekommst eine E-Mail mit einem Link zum Zurücksetzen.', Boolean(error));
   });
@@ -1228,7 +1245,7 @@ function syncDialogEinrichten() {
   $('#sync-jetzt').addEventListener('click', () => syncJetzt());
 
   $('#sync-abmelden').addEventListener('click', async () => {
-    await sync.client.auth.signOut();
+    await sync.client?.auth.signOut();
     syncMeldung('Abgemeldet. Deine Spiele bleiben auf diesem Gerät gespeichert.');
     syncDialogAktualisieren();
   });
@@ -1477,6 +1494,26 @@ function bedienungEinrichten() {
       zeigeHinweis('Sortierung auf „Eigene Reihenfolge“ gestellt');
     }
   });
+  const filterZuruecksetzen = () => {
+    suchtext = ''; $('#suche').value = '';
+    ansicht.status = ''; ansicht.kategorie = ''; ansicht.erledigteAus = false;
+    ansichtMerken();
+    rendern();
+  };
+  $('#filter-zuruecksetzen').addEventListener('click', filterZuruecksetzen);
+  $('#liste').addEventListener('click', (e) => { if (e.target.closest('[data-filter-zuruecksetzen]')) filterZuruecksetzen(); });
+
+  // Tastatur am PC: „/“ springt in die Suche, Escape leert sie
+  document.addEventListener('keydown', (e) => {
+    if (e.key === '/' && !e.target.closest('input, textarea, select') && !$('dialog[open]')) {
+      e.preventDefault();
+      $('#suche').focus();
+    }
+  });
+  $('#suche').addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && e.target.value) { e.target.value = ''; suchtext = ''; rendern(); }
+  });
+
   $('#neu-knopf').addEventListener('click', () => spielDialogOeffnen());
   $('#statistik-knopf').addEventListener('click', statistikOeffnen);
   $('#toast-knopf').addEventListener('click', () => {
@@ -1542,8 +1579,23 @@ async function start() {
     $('#liste').innerHTML = '<p class="leer">Die Spieleliste konnte nicht geladen werden.<br>Bitte prüfe die Internetverbindung und lade die Seite neu.</p>';
     return;
   }
+  verknuepfungAusfuehren();
   serviceWorkerRegistrieren();
   syncStarten();
+}
+
+// Langes Drücken auf das App-Symbol (Android) bietet „Was soll ich spielen?“ und „Spiel hinzufügen“
+function verknuepfungAusfuehren() {
+  const aktion = new URLSearchParams(location.search).get('aktion');
+  if (!aktion) return;
+  history.replaceState(null, '', location.pathname);
+  if (aktion === 'wuerfeln') {
+    ansicht.reiter = 'bibliothek';
+    rendern();
+    wuerfelDialogOeffnen();
+  } else if (aktion === 'neu') {
+    spielDialogOeffnen();
+  }
 }
 
 start();

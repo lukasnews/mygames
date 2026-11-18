@@ -64,6 +64,7 @@ svg { width: 22px; height: 22px; fill: currentColor; }
 /* Kopfbereich */
 .kopf {
   position: sticky; top: 0; z-index: 10;
+  background: var(--bg);
   background: color-mix(in srgb, var(--bg) 92%, transparent);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
@@ -85,7 +86,7 @@ h1 { font-size: 1.35rem; margin: 0; letter-spacing: -.01em; }
   border-bottom: 3px solid transparent;
 }
 .reiter-knopf[aria-selected="true"] { color: var(--akzent); border-bottom-color: var(--akzent); }
-.zahl { font-weight: 500; opacity: .75; font-size: .9em; }
+.zahl { font-weight: 500; font-size: .9em; }
 
 main { max-width: 760px; margin: 0 auto; padding: 12px 16px 0; }
 
@@ -161,9 +162,16 @@ select:focus-visible, .feld input:focus-visible, .feld textarea:focus-visible, .
 .spiel.markiert { animation: blink 1.6s ease; }
 @keyframes blink { 0%, 60% { background: var(--akzent-weich); } }
 .spiel-kopf { display: flex; align-items: flex-start; gap: 8px; }
-.spiel-name { font-weight: 650; flex: 1; font-size: 1.02rem; overflow-wrap: anywhere; }
+.spiel-name { font-weight: 650; flex: 1; font-size: 1.02rem; overflow-wrap: break-word; min-width: 0; padding-top: 8px; }
 .spiel-beschr { margin: 0; color: var(--text-leise); font-size: .93rem; }
-.spiel-meta { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: .85rem; color: var(--text-leise); }
+.spiel-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; font-size: .85rem; color: var(--text-leise); }
+.steam-link {
+  margin-left: auto; color: var(--akzent); font-weight: 600; text-decoration: none;
+  min-height: 36px; display: inline-flex; align-items: center; padding: 0 2px;
+}
+.steam-link:hover { text-decoration: underline; }
+.gold { color: var(--stern); }
+#filter-zuruecksetzen { justify-self: start; padding: 4px 0; }
 .spiel-notiz { font-size: .9rem; background: var(--flaeche-2); border-radius: 8px; padding: 6px 10px; overflow-wrap: anywhere; }
 .spiel-notiz::before { content: "📝 "; }
 .spiel-aktionen { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 2px; }
@@ -296,8 +304,8 @@ dialog h2 { margin: 0 0 4px; font-size: 1.2rem; }
 /* Kompaktansicht */
 .spiel.kompakt { padding: 6px 8px 6px 14px; grid-template-columns: 1fr auto; align-items: center; gap: 8px; }
 .spiel-name-knopf {
-  border: 0; background: none; padding: 6px 0; text-align: left; cursor: pointer; min-height: 40px;
-  display: flex; align-items: center; gap: 8px; font-weight: 650; font-size: 1rem; overflow-wrap: anywhere;
+  border: 0; background: none; padding: 6px 0; text-align: left; cursor: pointer; min-height: 40px; min-width: 0;
+  display: flex; align-items: center; gap: 8px; font-weight: 650; font-size: 1rem; overflow-wrap: break-word;
 }
 .spiel-name-knopf .mini-stern { color: var(--stern); font-weight: 600; font-size: .85rem; white-space: nowrap; }
 .spiel.kompakt .status-wahl { min-height: 36px; font-size: .85rem; }
