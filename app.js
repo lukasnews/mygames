@@ -6,7 +6,7 @@
    eingerichtet – über Supabase zwischen Geräten abgeglichen.
    ========================================================= */
 
-const APP_VERSION = '2.2.1';
+const APP_VERSION = '2.2.2';
 const DATEN_KEY = 'spieleliste.daten.v1';
 const ANSICHT_KEY = 'spieleliste.ansicht.v1';
 const SYNC_KEY = 'spieleliste.sync.v1';
@@ -1298,6 +1298,12 @@ function fehlerText(e) {
   if (/already registered/i.test(m)) return 'Für diese E-Mail gibt es schon ein Konto. Bitte anmelden.';
   if (/Password should be/i.test(m)) return 'Das Passwort muss mindestens 8 Zeichen haben.';
   if (/signups not allowed|Signups not allowed/i.test(m)) return 'Neue Konten sind in Supabase gesperrt.';
+  if (/Failed to send a request to the Edge Function|Requested function was not found|NOT_FOUND/i.test(m)) {
+    return navigator.onLine
+      ? 'Die Steam-Funktion ist in Supabase nicht erreichbar. Meist ist sie noch nicht angelegt oder heißt nicht genau „steam-spielzeit“ (Anleitung Teil 2, Schritt 4). Ist sie angelegt, schau in Supabase unter Edge Functions → steam-spielzeit → Logs nach einem Fehler.'
+      : 'Du bist offline. Die Steam-Spielzeiten lassen sich nur mit Internet holen.';
+  }
+  if (/non-2xx status code/i.test(m)) return 'Die Steam-Funktion in Supabase hat einen Fehler gemeldet. Details stehen in Supabase unter Edge Functions → steam-spielzeit → Logs.';
   if (/Failed to fetch|NetworkError/i.test(m)) return 'Keine Verbindung zu Supabase. Bist du online? Stimmt die Project URL?';
   return m;
 }
