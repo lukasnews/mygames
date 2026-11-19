@@ -6,7 +6,7 @@
    eingerichtet – über Supabase zwischen Geräten abgeglichen.
    ========================================================= */
 
-const APP_VERSION = '2.7.0';
+const APP_VERSION = '2.7.1';
 const DATEN_KEY = 'spieleliste.daten.v1';
 const ANSICHT_KEY = 'spieleliste.ansicht.v1';
 const SYNC_KEY = 'spieleliste.sync.v1';
@@ -2200,6 +2200,11 @@ function durchHinweise() {
     if (h && kategorieVon(s.kategorie)?.bereich === 'Story-Wunsch' && spielzeitMinuten(s.spielzeit) / 60 >= h &&
         !(e && e.abschlussVorhanden)) {
       hinweise.push({ s, zeit: null, stark: false, grund: `${s.spielzeit} gespielt, das Spiel dauert ca. ${String(h).replace('.', ',')} Std.` });
+      continue;
+    }
+    // Beschreibung sagt es schon („Mit 18 Std. wohl schon durch“) – „fast durch“ zählt nicht
+    if (/\b(wohl|vermutlich|sicher) schon durch\b/i.test(s.beschreibung) && !(e && e.abschlussVorhanden)) {
+      hinweise.push({ s, zeit: null, stark: false, grund: `laut Beschreibung schon durch, ${s.spielzeit} gespielt` });
     }
   }
   return hinweise.sort((a, b) => b.stark - a.stark || (b.zeit ?? '').localeCompare(a.zeit ?? ''));
