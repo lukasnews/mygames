@@ -123,7 +123,26 @@ Wenn du **„Gesamte Spielzeit immer privat halten“** angehakt hast, nimm den 
 Speichern mit **Save**.
 
 ### 6. Ausprobieren
-In der App **⋯ → Spielzeiten von Steam holen → Spielzeiten jetzt holen**.
-Danach siehst du, wie viele Spiele aktualisiert wurden und welche Namen nicht zugeordnet werden konnten.
-Für solche Spiele trägst du unter **Bearbeiten → Steam-App-ID** die Nummer aus der Steam-Shop-Adresse ein,
+In der App **⋯ → Steam-Abgleich → Jetzt abgleichen**. Der Abgleich dauert bis zu einer Minute.
+
+### Der monatliche Steam-Abgleich
+Einmal im Monat läuft der Abgleich automatisch, sobald du die App öffnest und angemeldet bist.
+Danach erscheint unten ein Hinweis mit **Ansehen**. Der Abgleich zeigt dir:
+- **Spielzeiten** und **zuletzt gespielt** für alle Spiele.
+- **Gerade dabei:** Spiele, die du im letzten Monat gespielt hast. Ist alles älter, steht dort
+  „Zurzeit kein aktuelles Spiel“. Ein Spiel, das du im letzten Monat gespielt hast und das noch „Offen“ war,
+  wird automatisch auf „Angefangen“ gesetzt.
+- **Neu in Steam:** Spiele in deinem Steam-Konto, die noch nicht in der App sind, mit vorgeschlagener
+  Kategorie, „Hinzufügen“ oder „Ignorieren“.
+- **Inzwischen gekauft:** Spiele von deiner Wunschliste, die du jetzt besitzt.
+- **Angebote:** aktuelle Preise und Rabatte deiner Wunschliste.
+- **Vorschläge:** aktuelle Steam-Bestseller, Angebote und Neuerscheinungen, die zu deinen Genres passen.
+  Mit „+ Wunschliste“ landen sie in der Kategorie „Vorschläge aus Steam“.
+- **Was du magst:** Genres, berechnet aus durchgespielten, gut bewerteten und viel gespielten Spielen.
+  Mit 👍 und 👎 korrigierst du das.
+
+Wird ein Spiel nicht zugeordnet, trägst du unter **Bearbeiten → Steam-App-ID** die Nummer aus der Steam-Shop-Adresse ein,
 z. B. `store.steampowered.com/app/620/` → `620`.
+
+**Nach einem Update der Steam-Funktion** (neuer Code in `supabase/functions/steam-spielzeit/index.ts`):
+in Supabase **Edge Functions →** deine Funktion **→ Code** öffnen, alles ersetzen und **Deploy** klicken.

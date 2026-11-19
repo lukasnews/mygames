@@ -370,3 +370,26 @@ a.klein-knopf { text-decoration: none; color: inherit; }
   font-size: .72rem; font-weight: 600; border: 1px solid var(--tipp-rand);
 }
 #form-tipp textarea:disabled { opacity: .75; }
+
+/* Steam-Abgleich */
+.steam-ergebnis section { display: grid; gap: 6px; border-top: 1px solid var(--rand); padding-top: 10px; }
+.steam-ergebnis h3 { margin: 0; font-size: 1rem; }
+.steam-ergebnis p { margin: 0; }
+.steam-ergebnis ul { margin: 0; padding-left: 1.2em; display: grid; gap: 4px; }
+.steam-ergebnis .tipp-spiel { text-decoration-color: var(--akzent); font-weight: 600; }
+.steam-liste { list-style: none; padding: 0 !important; gap: 8px !important; }
+.steam-liste li {
+  display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap;
+  background: var(--flaeche-2); border-radius: 10px; padding: 8px 10px;
+}
+.steam-liste li > span:first-child { flex: 1 1 200px; min-width: 0; }
+.steam-knoepfe { display: flex; gap: 6px; flex-wrap: wrap; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip {
+  min-height: 38px; padding: 0 12px; border-radius: 19px; border: 1px solid var(--rand);
+  background: var(--flaeche); cursor: pointer; font-size: .9rem;
+}
+.chip.mag { background: var(--st-durch-bg); color: var(--st-durch); border-color: transparent; font-weight: 600; }
+.chip.mag-nicht { background: var(--st-ab-bg); color: var(--st-ab); border-color: transparent; text-decoration: line-through; }
+.sale { color: var(--gefahr); font-weight: 700; }
+.kein-spiel { margin: 0 0 4px; padding: 12px 14px; border-radius: var(--radius); background: var(--flaeche); border: 1px dashed var(--rand); color: var(--text-leise); }

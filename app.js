@@ -6,7 +6,7 @@
    eingerichtet – über Supabase zwischen Geräten abgeglichen.
    ========================================================= */
 
-const APP_VERSION = '2.3.0';
+const APP_VERSION = '2.4.0';
 const DATEN_KEY = 'spieleliste.daten.v1';
 const ANSICHT_KEY = 'spieleliste.ansicht.v1';
 const SYNC_KEY = 'spieleliste.sync.v1';
@@ -193,6 +193,11 @@ function normalisieren(roh, { startdaten = false } = {}) {
       reihenfolge: Number.isFinite(Number(s.reihenfolge)) && s.reihenfolge !== null && s.reihenfolge !== '' ? Number(s.reihenfolge) : index,
       steamAppId: appId > 0 ? appId : null,
       durchgespieltAm: status === 'durchgespielt' ? (s.durchgespieltAm ? zeitpunkt(s.durchgespieltAm) : null) : null,
+      zuletztGespielt: s.zuletztGespielt ? zeitpunkt(s.zuletztGespielt) : null,
+      merkmale: Array.isArray(s.merkmale) ? s.merkmale.map(String) : null,
+      preis: s.preis && typeof s.preis === 'object' && Number.isFinite(Number(s.preis.final))
+        ? { final: Number(s.preis.final), initial: Number(s.preis.initial ?? s.preis.final), waehrung: String(s.preis.waehrung || 'EUR'), rabatt: Number(s.preis.rabatt) || 0, stand: s.preis.stand ? zeitpunkt(s.preis.stand) : null }
+        : null,
       geaendert,
     });
   });
@@ -218,12 +223,26 @@ function normalisieren(roh, { startdaten = false } = {}) {
     }
   }
 
+  const st = roh?.steam && typeof roh.steam === 'object' ? roh.steam : {};
+  const liste = (x) => (Array.isArray(x) ? x : []);
+  const steam = {
+    letzterAbgleich: st.letzterAbgleich ? zeitpunkt(st.letzterAbgleich) : null,
+    vorlieben: st.vorlieben && typeof st.vorlieben === 'object' ? Object.fromEntries(Object.entries(st.vorlieben).filter(([, v]) => v === 1 || v === -1)) : {},
+    ignoriert: liste(st.ignoriert).map(Number).filter(Boolean),
+    besitz: liste(st.besitz).map(Number).filter(Boolean),
+    neu: liste(st.neu).filter((n) => n && n.appid),
+    kandidaten: liste(st.kandidaten).filter((k) => k && k.appid),
+    bericht: st.bericht && typeof st.bericht === 'object' ? st.bericht : null,
+    geaendert: zeitpunkt(st.geaendert),
+  };
+
   return {
     version: 2,
     kategorien,
     spiele,
     geloescht,
     tipps,
+    steam,
     geaendert: roh?.geaendert ?? null,
     letzterExport: roh?.letzterExport ?? null,
     letzterSync: roh?.letzterSync ?? null,
@@ -247,12 +266,13 @@ function vergleichsText(d) {
     spiele: [...d.spiele].sort((a, b) => a.id.localeCompare(b.id)),
     geloescht: d.geloescht,
     tipps: d.tipps,
+    steam: d.steam,
   });
 }
 
 // Der Teil der Daten, der synchronisiert und exportiert wird
 function inhalt(d) {
-  return { app: 'spieleliste', version: 2, kategorien: d.kategorien, spiele: d.spiele, geloescht: d.geloescht, tipps: d.tipps };
+  return { app: 'spieleliste', version: 2, kategorien: d.kategorien, spiele: d.spiele, geloescht: d.geloescht, tipps: d.tipps, steam: d.steam };
 }
 
 async function startdatenLaden() {
@@ -367,7 +387,16 @@ function zusammenfuehren(lokal, fern) {
     tipps[liste] = b.geaendert > a.geaendert || (b.geaendert === a.geaendert && stabil(b) > stabil(a)) ? b : a;
   }
 
-  return { ...lokal, kategorien, spiele, geloescht, tipps };
+  // Steam-Abgleich: neuerer Stand gewinnt, ignorierte Spiele werden zusammengelegt
+  const sa = lokal.steam;
+  const sb = fern.steam;
+  let steam = sa ?? sb;
+  if (sa && sb) {
+    steam = sb.geaendert > sa.geaendert || (sb.geaendert === sa.geaendert && stabil(sb) > stabil(sa)) ? sb : sa;
+    steam = { ...steam, ignoriert: [...new Set([...sa.ignoriert, ...sb.ignoriert])].sort((x, y) => x - y) };
+  }
+
+  return { ...lokal, kategorien, spiele, geloescht, tipps, steam };
 }
 
 /* ---------- Rückgängig ---------- */
@@ -501,9 +530,11 @@ function spielHtml(s, kontext = {}) {
   const steamText = s.liste === 'wunschliste' ? 'Preis auf Steam' : 'Steam';
   const meta = [];
   if (s.spielzeit) meta.push(`<span>⏱ Bisher gespielt: ${esc(s.spielzeit)}</span>`);
+  if (s.zuletztGespielt && s.liste === 'bibliothek') meta.push(`<span>🕹 Zuletzt gespielt ${esc(relativeZeit(s.zuletztGespielt))}</span>`);
   if (s.status === 'durchgespielt' && s.durchgespieltAm) {
     meta.push(`<span>✓ Durchgespielt am ${new Date(s.durchgespieltAm).toLocaleDateString('de-DE')}</span>`);
   }
+  if (s.liste === 'wunschliste' && s.preis) meta.push(`<span>${preisHtml(s.preis)}</span>`);
   return `
     <article class="spiel" data-id="${esc(s.id)}">
       <div class="spiel-kopf">
@@ -549,14 +580,53 @@ function kategorieHtml(kat, alleSpiele, gefiltert, offenErzwingen) {
 }
 
 function geradeDabeiHtml() {
-  const dabei = daten.spiele.filter((s) => s.liste === 'bibliothek' && s.status === 'angefangen')
-    .sort((a, b) => b.geaendert.localeCompare(a.geaendert));
-  if (!dabei.length) return '';
+  const dabei = aktuelleSpiele();
+  if (!dabei.length) {
+    if (!hatSteamZeiten()) return '';
+    return `<div class="bereich"><h2>Gerade dabei</h2></div><p class="kein-spiel">🕹 ${esc(keinAktuellesSpielText())}</p>`;
+  }
   return `
-    <div class="bereich"><h2>Gerade dabei</h2><p>Deine angefangenen Spiele</p></div>
+    <div class="bereich"><h2>Gerade dabei</h2><p>${hatSteamZeiten() ? 'Im letzten Monat gespielt' : 'Deine angefangenen Spiele'}</p></div>
     <div class="kategorie dabei">
       <div class="kat-spiele">${dabei.map((s) => spielHtml(s)).join('')}</div>
     </div>`;
+}
+
+// Zeitpunkt vor genau einem Monat (Grenze für „aktuelles Spiel“)
+function vorEinemMonat() {
+  const d = new Date();
+  d.setMonth(d.getMonth() - 1);
+  return d.toISOString();
+}
+
+function hatSteamZeiten() {
+  return daten.spiele.some((s) => s.zuletztGespielt);
+}
+
+// Aktuelle Spiele: mit Steam-Daten = im letzten Monat gespielt, sonst Status „angefangen“
+function aktuelleSpiele() {
+  const bib = daten.spiele.filter((s) => s.liste === 'bibliothek');
+  if (!hatSteamZeiten()) return bib.filter((s) => s.status === 'angefangen').sort((a, b) => b.geaendert.localeCompare(a.geaendert));
+  const grenze = vorEinemMonat();
+  return bib.filter((s) => s.zuletztGespielt && s.zuletztGespielt >= grenze)
+    .sort((a, b) => b.zuletztGespielt.localeCompare(a.zuletztGespielt));
+}
+
+function keinAktuellesSpielText() {
+  const letztes = daten.spiele.filter((s) => s.zuletztGespielt).sort((a, b) => b.zuletztGespielt.localeCompare(a.zuletztGespielt))[0];
+  return letztes
+    ? `Zurzeit kein aktuelles Spiel – zuletzt gespielt: ${letztes.name}, ${relativeZeit(letztes.zuletztGespielt)}.`
+    : 'Zurzeit kein aktuelles Spiel.';
+}
+
+function relativeZeit(iso) {
+  const tage = Math.floor((Date.now() - new Date(iso)) / 864e5);
+  if (tage <= 0) return 'heute';
+  if (tage === 1) return 'gestern';
+  if (tage < 14) return `vor ${tage} Tagen`;
+  if (tage < 60) return `vor ${Math.round(tage / 7)} Wochen`;
+  if (tage < 365) return `vor ${Math.round(tage / 30)} Monaten`;
+  return `am ${new Date(iso).toLocaleDateString('de-DE')}`;
 }
 
 /* ---------- Tipp-Kasten ---------- */
@@ -631,12 +701,14 @@ function autoStartTipp() {
   const teile = [];
   const erwaehnt = new Set();
 
-  // 1. Weiterspielen
-  const dabei = bib.filter((s) => s.status === 'angefangen').sort((a, b) => b.geaendert.localeCompare(a.geaendert)).slice(0, 2);
+  // 1. Weiterspielen (mit Steam-Daten: im letzten Monat gespielt)
+  const dabei = aktuelleSpiele().slice(0, 2);
   if (dabei.length === 1) {
     teile.push(`Weiterspielen: ${dabei[0].name}${dabei[0].spielzeit ? ` (bisher ${dabei[0].spielzeit})` : ''}.`);
   } else if (dabei.length > 1) {
     teile.push(`Weiterspielen: ${namenListe(dabei)}.`);
+  } else if (hatSteamZeiten()) {
+    teile.push('Zurzeit spielst du nichts.');
   }
   dabei.forEach((s) => erwaehnt.add(s.id));
 
@@ -1107,6 +1179,7 @@ function spielDialogEinrichten() {
       id: neueId(), ...werte, status,
       reihenfolge: naechsteReihenfolge(kat.name),
       durchgespieltAm: status === 'durchgespielt' ? jetzt() : null,
+      zuletztGespielt: null, merkmale: null, preis: null,
       geaendert: jetzt(),
     };
     daten.spiele.push(neu);
@@ -1405,7 +1478,7 @@ async function syncJetzt() {
     if (data?.daten) {
       const fern = normalisieren(data.daten);
       fernText = vergleichsText(fern);
-      daten = zusammenfuehren(daten, fern);
+      daten = normalisieren(zusammenfuehren(daten, fern));
     }
     const nachher = inhalt(daten);
     const nachherText = vergleichsText(daten);
@@ -1422,6 +1495,7 @@ async function syncJetzt() {
       rendern();
     }
     syncZustand('ok');
+    if (steamFaellig()) setTimeout(() => steamAbgleich({ automatisch: true }), 1500);
   } catch (e) {
     console.error('Sync-Fehler', e);
     syncZustand(navigator.onLine ? 'fehler' : 'offline', e.message || String(e));
@@ -1562,16 +1636,26 @@ function syncDialogEinrichten() {
   window.addEventListener('offline', () => { if (sync.user) syncZustand('offline'); });
 }
 
-/* ---------- Steam-Spielzeiten ---------- */
+/* ---------- Steam-Abgleich (monatlich) ---------- */
+
+const STEAM_VERSUCH_KEY = 'spieleliste.steamVersuch';
+const VORSCHLAG_KATEGORIE = 'Vorschläge aus Steam';
+const RELEVANTE_KATEGORIE = /einzelspieler|mehrspieler|koop|pvp|mmo|bildschirm/i;
+
+function steamMerkmale(d) {
+  if (!d) return null;
+  const kat = (d.kategorien ?? []).filter((k) => RELEVANTE_KATEGORIE.test(k) && !/plattform/i.test(k));
+  return [...new Set([...(d.genres ?? []), ...kat])];
+}
 
 function steamDialogOeffnen() {
   $('#dlg-menue').close();
-  $('#steam-ergebnis').innerHTML = '';
   const bereit = Boolean(sync.client && sync.user);
   $('#steam-los').disabled = !bereit;
   $('#steam-text').textContent = bereit
-    ? 'Holt deine aktuellen Spielzeiten aus Steam und trägt sie bei den passenden Spielen ein.'
+    ? 'Gleicht deine Steam-Bibliothek ab: Spielzeiten, was du gerade spielst, neue Spiele, Preise deiner Wunschliste und Vorschläge nach deinem Geschmack. Läuft automatisch einmal im Monat.'
     : 'Dafür brauchst du die Synchronisation (☁ oben) und die Steam-Funktion in Supabase. Die Anleitung steht in ANLEITUNG-SYNC.md, Teil 2.';
+  steamErgebnisAnzeigen();
   $('#dlg-steam').showModal();
 }
 
@@ -1579,57 +1663,354 @@ function steamSchluessel(name) {
   return namensSchluessel(String(name).replace(/\(.*?\)/g, '').replace(/[™®©]/g, ''));
 }
 
-async function steamHolen() {
+function steamFaellig() {
+  if (!daten.steam.letzterAbgleich || daten.steam.letzterAbgleich < vorEinemMonat()) {
+    let versuch = null;
+    try { versuch = localStorage.getItem(STEAM_VERSUCH_KEY); } catch { /* egal */ }
+    // Höchstens einmal am Tag automatisch versuchen (falls Steam oder Supabase gerade nicht mag)
+    return !versuch || Date.now() - Number(versuch) > 864e5;
+  }
+  return false;
+}
+
+async function steamFunktionAufrufen(body) {
+  const { data, error } = await sync.client.functions.invoke(steamFunktion(), { method: 'POST', body });
+  if (error) {
+    let detail = error.message;
+    try { detail = (await error.context?.json())?.fehler || detail; } catch { /* egal */ }
+    throw new Error(detail);
+  }
+  if (data?.fehler) throw new Error(data.fehler);
+  return data;
+}
+
+// Der eigentliche Abgleich. automatisch = vom Monats-Check ausgelöst (still, nur ein Hinweis am Ende)
+async function steamAbgleich({ automatisch = false } = {}) {
+  if (!sync.client || !sync.user) return;
+  if (automatisch) { try { localStorage.setItem(STEAM_VERSUCH_KEY, String(Date.now())); } catch { /* egal */ } }
   const knopf = $('#steam-los');
   knopf.disabled = true;
-  knopf.textContent = 'Frage Steam …';
-  const box = $('#steam-ergebnis');
+  knopf.textContent = 'Frage Steam … (dauert bis zu einer Minute)';
   try {
-    const { data, error } = await sync.client.functions.invoke(steamFunktion(), { method: 'POST', body: {} });
-    if (error) {
-      let detail = error.message;
-      try { detail = (await error.context?.json())?.fehler || detail; } catch { /* egal */ }
-      throw new Error(detail);
-    }
-    if (data?.fehler) throw new Error(data.fehler);
+    const bekannteDetails = [
+      ...daten.spiele.filter((s) => s.steamAppId && s.merkmale).map((s) => s.steamAppId),
+      ...daten.steam.neu.filter((n) => n.merkmale).map((n) => n.appid),
+      ...daten.steam.ignoriert,
+    ];
+    const wunsch = daten.spiele.filter((s) => s.liste === 'wunschliste').map((s) => ({ id: s.id, name: s.name, appid: s.steamAppId }));
+    const data = await steamFunktionAufrufen({ mitDetails: [...new Set(bekannteDetails)], wunsch, vorschlaege: true });
     const steamSpiele = data?.spiele ?? [];
     if (!steamSpiele.length) throw new Error('Steam hat keine Spiele geliefert. Ist im Steam-Profil „Spieldetails“ auf „Öffentlich“ gestellt?');
+    const details = data.details ?? {};
+    const warnungen = [...(data.warnungen ?? [])];
+    if (!('kandidaten' in data)) warnungen.push('Deine Steam-Funktion in Supabase ist noch die alte Version. Für Genres, Preise und Vorschläge bitte den neuen Code einfügen (Anleitung Teil 2, Schritt 4).');
 
+    sicherungMachen();
+    const grenze = vorEinemMonat();
     const nachId = new Map(steamSpiele.map((g) => [g.appid, g]));
     const nachName = new Map(steamSpiele.map((g) => [steamSchluessel(g.name), g]));
-    const gefunden = new Set();
-    let aktualisiert = 0;
-    const nichtGefunden = [];
-    sicherungMachen();
+    const zugeordnet = new Set();
+    let spielzeiten = 0;
+    const nunAngefangen = [];
+
+    // Bibliothek: Spielzeit, zuletzt gespielt, Genres
     for (const s of daten.spiele.filter((x) => x.liste === 'bibliothek')) {
       const g = (s.steamAppId && nachId.get(s.steamAppId)) || nachName.get(steamSchluessel(s.name));
-      if (!g) { nichtGefunden.push(s.name); continue; }
-      gefunden.add(g.appid);
+      if (!g) continue;
+      zugeordnet.add(g.appid);
+      const vorher = stabil(s);
       const neueZeit = spielzeitText(g.minuten);
-      if (s.spielzeit !== neueZeit || s.steamAppId !== g.appid) {
-        if (s.spielzeit !== neueZeit) aktualisiert++;
-        s.spielzeit = neueZeit;
-        s.steamAppId = g.appid;
-        beruehren(s);
+      if (s.spielzeit !== neueZeit) spielzeiten++;
+      s.spielzeit = neueZeit;
+      s.steamAppId = g.appid;
+      if (g.zuletzt) s.zuletztGespielt = g.zuletzt;
+      const m = steamMerkmale(details[g.appid]);
+      if (m) s.merkmale = m;
+      // Im letzten Monat gespielt, aber noch „offen“ → angefangen
+      if (s.status === 'offen' && s.zuletztGespielt && s.zuletztGespielt >= grenze) {
+        s.status = 'angefangen';
+        nunAngefangen.push(s.name);
       }
+      if (stabil(s) !== vorher) beruehren(s);
+    }
+
+    // Wunschliste: App-ID, Preis; Spiele, die du inzwischen besitzt
+    const wunschInfo = new Map((data.wunsch ?? []).map((w) => [w.id, w]));
+    for (const s of daten.spiele.filter((x) => x.liste === 'wunschliste')) {
+      const vorher = stabil({ ...s, preis: s.preis && { ...s.preis, stand: null } });
+      const w = wunschInfo.get(s.id);
+      if (w?.appid && !s.steamAppId) s.steamAppId = w.appid;
+      if (w?.preis) s.preis = { ...w.preis, stand: jetzt() };
+      const g = (s.steamAppId && nachId.get(s.steamAppId)) || nachName.get(steamSchluessel(s.name));
+      if (g) zugeordnet.add(g.appid);
+      if (stabil({ ...s, preis: s.preis && { ...s.preis, stand: null } }) !== vorher) beruehren(s);
+    }
+
+    // Neu in Steam: weder in Bibliothek noch Wunschliste, nicht ignoriert
+    const alteNeu = new Map(daten.steam.neu.map((n) => [n.appid, n]));
+    const ignoriert = new Set(daten.steam.ignoriert);
+    const neu = steamSpiele.filter((g) => !zugeordnet.has(g.appid) && !ignoriert.has(g.appid))
+      .sort((a, b) => (b.zuletzt ?? '').localeCompare(a.zuletzt ?? '') || b.minuten - a.minuten)
+      .slice(0, 40)
+      .map((g) => {
+        const d = details[g.appid];
+        const alt = alteNeu.get(g.appid);
+        return {
+          appid: g.appid, name: g.name, minuten: g.minuten, zuletzt: g.zuletzt,
+          merkmale: steamMerkmale(d) ?? alt?.merkmale ?? null,
+          beschreibung: d?.beschreibung ?? alt?.beschreibung ?? '',
+        };
+      });
+
+    const kandidaten = 'kandidaten' in data
+      ? (data.kandidaten ?? []).map((k) => ({
+          appid: k.appid, name: k.name, merkmale: steamMerkmale(k), beschreibung: k.beschreibung ?? '',
+          preis: k.preis ?? null, quelle: k.quelle ?? '',
+        }))
+      : daten.steam.kandidaten;
+
+    daten.steam = {
+      ...daten.steam,
+      letzterAbgleich: jetzt(),
+      besitz: steamSpiele.map((g) => g.appid),
+      neu,
+      kandidaten,
+      bericht: { spielzeiten, nunAngefangen, warnungen, anzahl: steamSpiele.length },
+      geaendert: jetzt(),
+    };
+    speichern();
+    rendern();
+
+    if (automatisch) {
+      const v = steamVorschlaege().length;
+      const teile = [neu.length && `${neu.length} neu`, v && `${v} Vorschläge`, spielzeiten && `${spielzeiten} Spielzeiten`].filter(Boolean);
+      zeigeHinweis(`🎮 Monatlicher Steam-Abgleich${teile.length ? ': ' + teile.join(', ') : ' erledigt'}`,
+        { knopf: 'Ansehen', aktion: steamDialogOeffnen, dauer: 12000 });
+    } else {
+      steamErgebnisAnzeigen();
+    }
+  } catch (e) {
+    if (!automatisch) $('#steam-ergebnis').innerHTML = `<p class="meldung fehler">${esc(fehlerText(e))}</p>`;
+    else console.warn('Automatischer Steam-Abgleich fehlgeschlagen', e);
+  } finally {
+    knopf.disabled = !(sync.client && sync.user);
+    knopf.textContent = '🎮 Jetzt abgleichen';
+  }
+}
+
+/* --- Geschmack: was du magst --- */
+
+// Gewicht eines Spiels für deinen Geschmack: durchgespielt, gut bewertet, viel gespielt, Story-Wunsch
+function spielGewicht(s) {
+  let w = 0;
+  if (s.status === 'durchgespielt') w += 2;
+  else if (s.status === 'angefangen') w += 1;
+  else if (s.status === 'abgebrochen') w -= 2;
+  if (s.bewertung) w += (s.bewertung - 3) * 1.5;
+  const h = spielzeitMinuten(s.spielzeit) / 60;
+  w += Math.min(3, Math.log10(1 + h) * 1.5);
+  if (kategorieVon(s.kategorie)?.bereich === 'Story-Wunsch') w += 1;
+  return w;
+}
+
+function geschmack() {
+  const summe = new Map();
+  const anzahl = new Map();
+  for (const s of daten.spiele) {
+    if (s.liste !== 'bibliothek' || !s.merkmale) continue;
+    const w = spielGewicht(s);
+    for (const m of s.merkmale) {
+      summe.set(m, (summe.get(m) ?? 0) + w);
+      anzahl.set(m, (anzahl.get(m) ?? 0) + 1);
+    }
+  }
+  const ergebnis = new Map();
+  for (const [m, w] of summe) ergebnis.set(m, w / Math.sqrt(anzahl.get(m)));
+  for (const [m, v] of Object.entries(daten.steam.vorlieben)) {
+    ergebnis.set(m, (ergebnis.get(m) ?? 0) + (v > 0 ? 5 : -100));
+  }
+  return ergebnis;
+}
+
+function steamVorschlaege() {
+  const g = geschmack();
+  const vorhanden = new Set(daten.spiele.map((s) => s.steamAppId).filter(Boolean));
+  const namen = new Set(daten.spiele.map((s) => steamSchluessel(s.name)));
+  const ignoriert = new Set(daten.steam.ignoriert);
+  const besitz = new Set(daten.steam.besitz);
+  return daten.steam.kandidaten
+    .filter((k) => !vorhanden.has(k.appid) && !ignoriert.has(k.appid) && !besitz.has(k.appid) && !namen.has(steamSchluessel(k.name)))
+    .map((k) => {
+      const m = k.merkmale ?? [];
+      if (m.some((x) => daten.steam.vorlieben[x] < 0)) return null;
+      // Mindestens ein Genre, das du magst (Spielmodi wie „Einzelspieler“ oder „PvP“ allein reichen nicht)
+      if (!m.some((x) => !RELEVANTE_KATEGORIE.test(x) && (g.get(x) ?? 0) > 0)) return null;
+      const punkte = m.reduce((a, x) => a + (g.get(x) ?? 0), 0) + (k.preis?.rabatt ?? 0) / 40;
+      const grund = [...m].filter((x) => (g.get(x) ?? 0) > 0).sort((a, b) => g.get(b) - g.get(a)).slice(0, 3);
+      return { ...k, punkte, grund };
+    })
+    .filter((k) => k && k.punkte > 0)
+    .sort((a, b) => b.punkte - a.punkte)
+    .slice(0, 8);
+}
+
+function geldText(cent, waehrung = 'EUR') {
+  if (cent === 0) return 'Kostenlos';
+  try { return (cent / 100).toLocaleString('de-DE', { style: 'currency', currency: waehrung }); } catch { return `${(cent / 100).toFixed(2)} ${waehrung}`; }
+}
+
+function preisHtml(p) {
+  if (!p) return '';
+  if (p.rabatt > 0) return `<span class="sale">🔥 −${p.rabatt} % · ${esc(geldText(p.final, p.waehrung))}</span> <s class="leise">${esc(geldText(p.initial, p.waehrung))}</s>`;
+  return `<span>💶 ${esc(geldText(p.final, p.waehrung))}</span>`;
+}
+
+// Vorschlag, in welche Kategorie ein neues Spiel gehört
+function kategorieRaten(merkmale) {
+  const m = merkmale ?? [];
+  const hat = (re) => m.some((x) => re.test(x));
+  const regeln = [
+    [hat(/simulation|rennspiel/i), 'Simulation & Fahren'],
+    [hat(/strategie|rollenspiel/i), 'Strategie & Rollenspiel'],
+    [hat(/massively|mmo/i) || (hat(/pvp/i) && !hat(/einzelspieler/i)), 'Online-Shooter'],
+    [hat(/koop/i) && !hat(/einzelspieler/i), 'Koop mit Freunden'],
+    [hat(/abenteuer/i) && hat(/einzelspieler/i), 'Gut, mit kleinen Abstrichen'],
+    [true, 'Sonstiges'],
+  ];
+  for (const [passt, name] of regeln) if (passt && kategorieVon(name)?.liste === 'bibliothek') return name;
+  return daten.kategorien.find((k) => k.liste === 'bibliothek')?.name;
+}
+
+function steamErgebnisAnzeigen() {
+  const st = daten.steam;
+  const box = $('#steam-ergebnis');
+  if (!st.letzterAbgleich) { box.innerHTML = ''; return; }
+  const b = st.bericht ?? {};
+  const teile = [];
+  teile.push(`<p class="meldung">✅ Letzter Abgleich: ${esc(datumText(st.letzterAbgleich))} · ${b.anzahl ?? st.besitz.length} Spiele in Steam${b.spielzeiten ? ` · ${b.spielzeiten} Spielzeiten aktualisiert` : ''}</p>`);
+  for (const w of b.warnungen ?? []) teile.push(`<p class="meldung fehler">${esc(w)}</p>`);
+
+  // Gerade dabei
+  const aktuell = aktuelleSpiele();
+  if (aktuell.length) {
+    teile.push(`<section><h3>🕹 Gerade dabei <span class="leise klein">(im letzten Monat gespielt)</span></h3><ul>${aktuell.map((s) => `<li><button class="tipp-spiel" data-spiel-id="${esc(s.id)}">${esc(s.name)}</button> <span class="leise">– ${esc(relativeZeit(s.zuletztGespielt))}</span></li>`).join('')}</ul>
+      ${b.nunAngefangen?.length ? `<p class="leise klein">Automatisch auf „Angefangen“ gesetzt: ${esc(b.nunAngefangen.join(', '))}</p>` : ''}</section>`);
+  } else {
+    teile.push(`<section><h3>🕹 Gerade dabei</h3><p>${esc(keinAktuellesSpielText())}</p></section>`);
+  }
+
+  // Gekauft erkannt: Wunschliste-Spiele, die du inzwischen besitzt
+  const besitz = new Set(st.besitz);
+  const gekauft = daten.spiele.filter((s) => s.liste === 'wunschliste' && s.steamAppId && besitz.has(s.steamAppId));
+  if (gekauft.length) {
+    teile.push(`<section><h3>🛒 Inzwischen gekauft</h3><p class="leise klein">Diese Spiele von deiner Wunschliste besitzt du jetzt.</p>
+      <ul class="steam-liste">${gekauft.map((s) => `<li><span>${esc(s.name)}</span><button class="klein-knopf haupt" data-steam="kaufen" data-id="${esc(s.id)}">→ Bibliothek</button></li>`).join('')}</ul></section>`);
+  }
+
+  // Neu in Steam
+  const neu = st.neu.filter((n) => !st.ignoriert.includes(n.appid) && !daten.spiele.some((s) => s.steamAppId === n.appid));
+  if (neu.length) {
+    teile.push(`<section><h3>🆕 Neu in Steam <span class="leise klein">(${neu.length})</span></h3><p class="leise klein">In deinem Steam-Konto, aber noch nicht in der App. „Hinzufügen“ legt das Spiel in die vorgeschlagene Kategorie, ändern kannst du sie danach über ✎.</p>
+      <ul class="steam-liste">${neu.map((n) => `<li><span><b>${esc(n.name)}</b><br><span class="leise klein">${esc([spielzeitText(n.minuten) ?? 'nie gespielt', n.zuletzt ? 'zuletzt ' + relativeZeit(n.zuletzt) : '', (n.merkmale ?? []).slice(0, 3).join(', '), '→ ' + kategorieRaten(n.merkmale)].filter(Boolean).join(' · '))}</span></span>
+        <span class="steam-knoepfe"><button class="klein-knopf haupt" data-steam="hinzufuegen" data-appid="${n.appid}">+ Hinzufügen</button><button class="klein-knopf" data-steam="ignorieren" data-appid="${n.appid}" aria-label="${esc(n.name)} ignorieren">Ignorieren</button></span></li>`).join('')}</ul></section>`);
+  }
+
+  // Angebote auf der Wunschliste
+  const angebote = daten.spiele.filter((s) => s.liste === 'wunschliste' && s.preis?.rabatt > 0).sort((a, c) => c.preis.rabatt - a.preis.rabatt);
+  if (angebote.length) {
+    teile.push(`<section><h3>🔥 Angebote auf deiner Wunschliste</h3><ul>${angebote.map((s) => `<li><button class="tipp-spiel" data-spiel-id="${esc(s.id)}">${esc(s.name)}</button> ${preisHtml(s.preis)}</li>`).join('')}</ul></section>`);
+  }
+
+  // Vorschläge
+  const vorschlaege = steamVorschlaege();
+  teile.push(`<section><h3>✨ Vorschläge für deine Wunschliste</h3>${vorschlaege.length
+    ? `<p class="leise klein">Aus den aktuellen Steam-Bestsellern, Angeboten und Neuerscheinungen, passend zu dem, was du magst.</p>
+      <ul class="steam-liste">${vorschlaege.map((k) => `<li><span><b>${esc(k.name)}</b> ${preisHtml(k.preis)}<br><span class="leise klein">${esc(k.quelle)}${k.grund.length ? ' · passt zu: ' + esc(k.grund.join(', ')) : ''}</span>${k.beschreibung ? `<br><span class="klein">${esc(k.beschreibung)}</span>` : ''}</span>
+        <span class="steam-knoepfe"><button class="klein-knopf haupt" data-steam="merken" data-appid="${k.appid}">+ Wunschliste</button><button class="klein-knopf" data-steam="ignorieren" data-appid="${k.appid}" aria-label="${esc(k.name)}: kein Interesse">Kein Interesse</button></span></li>`).join('')}</ul>`
+    : '<p class="leise">Gerade nichts Passendes unter den aktuellen Steam-Spielen. Nächsten Monat gibt es neue.</p>'}</section>`);
+
+  // Was du magst
+  const g = geschmack();
+  const merkmale = [...g.entries()].filter(([m]) => !(m in st.vorlieben)).sort((a, c) => c[1] - a[1]).slice(0, 10).map(([m]) => m);
+  const alle = [...Object.keys(st.vorlieben), ...merkmale];
+  if (alle.length) {
+    teile.push(`<section><h3>❤️ Was du magst</h3><p class="leise klein">Aus deinen Spielen berechnet (durchgespielt, gut bewertet, viel gespielt). Tippen wechselt: 👍 mag ich · 👎 mag ich nicht · neutral.</p>
+      <div class="chips">${alle.map((m) => {
+        const v = st.vorlieben[m];
+        return `<button class="chip${v > 0 ? ' mag' : v < 0 ? ' mag-nicht' : ''}" data-steam="vorliebe" data-merkmal="${esc(m)}" aria-pressed="${v ? 'true' : 'false'}">${v > 0 ? '👍 ' : v < 0 ? '👎 ' : ''}${esc(m)}</button>`;
+      }).join('')}</div></section>`);
+  }
+  box.innerHTML = teile.join('');
+}
+
+function steamEinrichten() {
+  $('#steam-los').addEventListener('click', () => steamAbgleich());
+  $('#steam-ergebnis').addEventListener('click', (e) => {
+    const link = e.target.closest('[data-spiel-id]');
+    if (link) {
+      $('#dlg-steam').close();
+      suchtext = ''; $('#suche').value = '';
+      ansicht.status = ''; ansicht.kategorie = ''; ansicht.erledigteAus = false;
+      aufgeklappt.add(link.dataset.spielId);
+      zeigeSpiel(link.dataset.spielId);
+      return;
+    }
+    const k = e.target.closest('[data-steam]');
+    if (!k) return;
+    const appid = Number(k.dataset.appid);
+    const st = daten.steam;
+    switch (k.dataset.steam) {
+      case 'kaufen':
+        $('#dlg-steam').close();
+        gekauftDialogOeffnen(k.dataset.id);
+        return;
+      case 'hinzufuegen': {
+        const n = st.neu.find((x) => x.appid === appid);
+        if (!n) return;
+        const kategorie = kategorieRaten(n.merkmale);
+        const imMonat = n.zuletzt && n.zuletzt >= vorEinemMonat();
+        daten.spiele.push({
+          id: neueId(), name: n.name, beschreibung: n.beschreibung || '', spielzeit: spielzeitText(n.minuten),
+          liste: 'bibliothek', kategorie, status: imMonat ? 'angefangen' : 'offen', notiz: '', bewertung: 0,
+          reihenfolge: naechsteReihenfolge(kategorie), steamAppId: n.appid, durchgespieltAm: null,
+          zuletztGespielt: n.zuletzt ?? null, merkmale: n.merkmale ?? null, preis: null, geaendert: jetzt(),
+        });
+        zeigeHinweis(`„${n.name}“ in „${kategorie}“ hinzugefügt`);
+        break;
+      }
+      case 'merken': {
+        const v = st.kandidaten.find((x) => x.appid === appid);
+        if (!v) return;
+        if (!kategorieVon(VORSCHLAG_KATEGORIE)) {
+          daten.kategorien.push({ name: VORSCHLAG_KATEGORIE, info: 'Passen zu dem, was du magst', bereich: 'Wunschliste', liste: 'wunschliste' });
+        }
+        daten.spiele.push({
+          id: neueId(), name: v.name, beschreibung: v.beschreibung || '', spielzeit: null,
+          liste: 'wunschliste', kategorie: VORSCHLAG_KATEGORIE, status: 'offen', notiz: '', bewertung: 0,
+          reihenfolge: naechsteReihenfolge(VORSCHLAG_KATEGORIE), steamAppId: v.appid, durchgespieltAm: null,
+          zuletztGespielt: null, merkmale: v.merkmale ?? null, preis: v.preis ? { ...v.preis, stand: st.letzterAbgleich } : null,
+          geaendert: jetzt(),
+        });
+        zeigeHinweis(`„${v.name}“ auf die Wunschliste gesetzt`);
+        break;
+      }
+      case 'ignorieren':
+        daten.steam = { ...st, ignoriert: [...new Set([...st.ignoriert, appid])], geaendert: jetzt() };
+        break;
+      case 'vorliebe': {
+        const m = k.dataset.merkmal;
+        const vorlieben = { ...st.vorlieben };
+        const v = vorlieben[m];
+        if (!v) vorlieben[m] = 1; else if (v > 0) vorlieben[m] = -1; else delete vorlieben[m];
+        daten.steam = { ...st, vorlieben, geaendert: jetzt() };
+        break;
+      }
+      default: return;
     }
     speichern();
     rendern();
-    const nurSteam = steamSpiele.filter((g) => !gefunden.has(g.appid)).sort((a, b) => b.minuten - a.minuten);
-    box.innerHTML = `
-      <p class="meldung">✅ ${steamSpiele.length} Spiele in deinem Steam-Konto · ${aktualisiert} Spielzeiten aktualisiert.</p>
-      ${nichtGefunden.length ? `<details><summary>${nichtGefunden.length} Spiele hier nicht in Steam gefunden</summary>
-        <p class="leise klein">Meist weicht nur der Name ab. Trag beim Spiel unter „Bearbeiten“ die Steam-App-ID ein, dann klappt es beim nächsten Mal.</p>
-        <ul>${nichtGefunden.map((n) => `<li>${esc(n)}</li>`).join('')}</ul></details>` : ''}
-      ${nurSteam.length ? `<details><summary>${nurSteam.length} Steam-Spiele, die hier fehlen</summary>
-        <ul>${nurSteam.map((g) => `<li>${esc(g.name)} <span class="leise">(${esc(spielzeitText(g.minuten) ?? 'nie gespielt')}, App-ID ${g.appid})</span></li>`).join('')}</ul></details>` : ''}`;
-    if (aktualisiert) zeigeHinweis(`${aktualisiert} Spielzeiten aktualisiert`, true);
-  } catch (e) {
-    box.innerHTML = `<p class="meldung fehler">${esc(fehlerText(e))}</p>`;
-  } finally {
-    knopf.disabled = false;
-    knopf.textContent = '🎮 Spielzeiten jetzt holen';
-  }
+    steamErgebnisAnzeigen();
+  });
 }
 
 /* ---------- Menü: Export, Import, Zurücksetzen ---------- */
@@ -1699,7 +2080,6 @@ function menueEinrichten() {
   });
 
   $('#steam-knopf').addEventListener('click', steamDialogOeffnen);
-  $('#steam-los').addEventListener('click', steamHolen);
 
   $('#export-knopf').addEventListener('click', () => {
     const datei = exportDatei();
@@ -1867,6 +2247,7 @@ async function start() {
   menueEinrichten();
   syncDialogEinrichten();
   tippEinrichten();
+  steamEinrichten();
   bedienungEinrichten();
   try {
     await laden();
