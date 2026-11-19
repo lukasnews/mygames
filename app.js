@@ -6,7 +6,7 @@
    eingerichtet – über Supabase zwischen Geräten abgeglichen.
    ========================================================= */
 
-const APP_VERSION = '2.4.0';
+const APP_VERSION = '2.4.1';
 const DATEN_KEY = 'spieleliste.daten.v1';
 const ANSICHT_KEY = 'spieleliste.ansicht.v1';
 const SYNC_KEY = 'spieleliste.sync.v1';
@@ -229,6 +229,7 @@ function normalisieren(roh, { startdaten = false } = {}) {
     letzterAbgleich: st.letzterAbgleich ? zeitpunkt(st.letzterAbgleich) : null,
     vorlieben: st.vorlieben && typeof st.vorlieben === 'object' ? Object.fromEntries(Object.entries(st.vorlieben).filter(([, v]) => v === 1 || v === -1)) : {},
     ignoriert: liste(st.ignoriert).map(Number).filter(Boolean),
+    ohneSteam: liste(st.ohneSteam).map(String),
     besitz: liste(st.besitz).map(Number).filter(Boolean),
     neu: liste(st.neu).filter((n) => n && n.appid),
     kandidaten: liste(st.kandidaten).filter((k) => k && k.appid),
@@ -393,7 +394,11 @@ function zusammenfuehren(lokal, fern) {
   let steam = sa ?? sb;
   if (sa && sb) {
     steam = sb.geaendert > sa.geaendert || (sb.geaendert === sa.geaendert && stabil(sb) > stabil(sa)) ? sb : sa;
-    steam = { ...steam, ignoriert: [...new Set([...sa.ignoriert, ...sb.ignoriert])].sort((x, y) => x - y) };
+    steam = {
+      ...steam,
+      ignoriert: [...new Set([...sa.ignoriert, ...sb.ignoriert])].sort((x, y) => x - y),
+      ohneSteam: [...new Set([...sa.ohneSteam, ...sb.ohneSteam])].sort(),
+    };
   }
 
   return { ...lokal, kategorien, spiele, geloescht, tipps, steam };
@@ -1907,6 +1912,21 @@ function steamErgebnisAnzeigen() {
       <ul class="steam-liste">${gekauft.map((s) => `<li><span>${esc(s.name)}</span><button class="klein-knopf haupt" data-steam="kaufen" data-id="${esc(s.id)}">→ Bibliothek</button></li>`).join('')}</ul></section>`);
   }
 
+  // Nicht zugeordnet: Spiele der Bibliothek, die im Steam-Konto nicht gefunden wurden
+  const besitzSet = new Set(st.besitz);
+  const offeneNeu = st.neu.filter((n) => !st.ignoriert.includes(n.appid) && !daten.spiele.some((s) => s.steamAppId === n.appid));
+  const nichtZugeordnet = daten.spiele.filter((s) => s.liste === 'bibliothek' && !st.ohneSteam.includes(s.id) &&
+    !(s.steamAppId && besitzSet.has(s.steamAppId)));
+  if (st.besitz.length && nichtZugeordnet.length) {
+    const auswahl = offeneNeu.length
+      ? `<option value="">Steam-Spiel wählen …</option>${offeneNeu.map((n) => `<option value="${n.appid}">${esc(n.name)}</option>`).join('')}`
+      : '';
+    teile.push(`<section><details class="zuordnung-box"><summary><h3>❓ Nicht zugeordnet <span class="leise klein">(${nichtZugeordnet.length})</span></h3></summary>
+      <p class="leise klein">Diese Spiele aus deiner App wurden in deinem Steam-Konto nicht gefunden, meist weil der Name abweicht. Wähle das passende Steam-Spiel, trag unter ✎ die Steam-App-ID ein oder blende Einträge aus, die nicht aus Steam stammen (z. B. Sammel-Einträge).</p>
+      <ul class="steam-liste">${nichtZugeordnet.map((s) => `<li><span><b>${esc(s.name)}</b><br><span class="leise klein">${esc(s.kategorie)}${s.steamAppId ? ` · App-ID ${s.steamAppId} nicht in deinem Konto` : ''}</span></span>
+        <span class="steam-knoepfe">${auswahl ? `<select class="zuordnung" data-id="${esc(s.id)}" aria-label="Steam-Spiel für ${esc(s.name)} wählen">${auswahl}</select><button class="klein-knopf haupt" data-steam="zuordnen" data-id="${esc(s.id)}">Zuordnen</button>` : ''}<button class="klein-knopf" data-steam="bearbeiten" data-id="${esc(s.id)}" aria-label="${esc(s.name)} bearbeiten">✎</button><button class="klein-knopf" data-steam="ohne-steam" data-id="${esc(s.id)}" aria-label="${esc(s.name)} ausblenden">Ausblenden</button></span></li>`).join('')}</ul></details></section>`);
+  }
+
   // Neu in Steam
   const neu = st.neu.filter((n) => !st.ignoriert.includes(n.appid) && !daten.spiele.some((s) => s.steamAppId === n.appid));
   if (neu.length) {
@@ -1994,6 +2014,27 @@ function steamEinrichten() {
         zeigeHinweis(`„${v.name}“ auf die Wunschliste gesetzt`);
         break;
       }
+      case 'zuordnen': {
+        const s = daten.spiele.find((x) => x.id === k.dataset.id);
+        const wahl = Number($(`select.zuordnung[data-id="${CSS.escape(k.dataset.id)}"]`)?.value);
+        const n = st.neu.find((x) => x.appid === wahl);
+        if (!s || !n) { zeigeHinweis('Bitte zuerst ein Steam-Spiel wählen'); return; }
+        s.steamAppId = n.appid;
+        s.spielzeit = spielzeitText(n.minuten);
+        s.zuletztGespielt = n.zuletzt ?? s.zuletztGespielt;
+        if (n.merkmale) s.merkmale = n.merkmale;
+        if (s.status === 'offen' && n.zuletzt && n.zuletzt >= vorEinemMonat()) s.status = 'angefangen';
+        beruehren(s);
+        zeigeHinweis(`„${s.name}“ ist jetzt „${n.name}“ in Steam zugeordnet`);
+        break;
+      }
+      case 'bearbeiten':
+        $('#dlg-steam').close();
+        spielDialogOeffnen(k.dataset.id);
+        return;
+      case 'ohne-steam':
+        daten.steam = { ...st, ohneSteam: [...new Set([...st.ohneSteam, k.dataset.id])], geaendert: jetzt() };
+        break;
       case 'ignorieren':
         daten.steam = { ...st, ignoriert: [...new Set([...st.ignoriert, appid])], geaendert: jetzt() };
         break;

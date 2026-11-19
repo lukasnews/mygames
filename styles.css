@@ -393,3 +393,12 @@ a.klein-knopf { text-decoration: none; color: inherit; }
 .chip.mag-nicht { background: var(--st-ab-bg); color: var(--st-ab); border-color: transparent; text-decoration: line-through; }
 .sale { color: var(--gefahr); font-weight: 700; }
 .kein-spiel { margin: 0 0 4px; padding: 12px 14px; border-radius: var(--radius); background: var(--flaeche); border: 1px dashed var(--rand); color: var(--text-leise); }
+
+.steam-knoepfe select.zuordnung { width: auto; max-width: 220px; min-height: 40px; font-size: .9rem; padding: 0 8px; }
+
+.zuordnung-box { display: grid; gap: 6px; }
+.zuordnung-box > summary { cursor: pointer; list-style: none; min-height: 36px; display: flex; align-items: center; }
+.zuordnung-box > summary::-webkit-details-marker { display: none; }
+.zuordnung-box > summary h3::after { content: " ▾"; color: var(--text-leise); }
+.zuordnung-box[open] > summary h3::after { content: " ▴"; }
+.zuordnung-box > p, .zuordnung-box > ul { margin-top: 6px; }
