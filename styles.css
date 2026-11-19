@@ -411,3 +411,5 @@ a.klein-knopf { text-decoration: none; color: inherit; }
 .mini-sale { color: var(--gefahr); font-weight: 700; font-size: .85rem; white-space: nowrap; }
 
 .zuordnung-box h4 { margin: 12px 0 0; font-size: .95rem; }
+
+.stern:not(.an) { color: var(--text-leise); opacity: .6; }

@@ -6,7 +6,7 @@
    eingerichtet – über Supabase zwischen Geräten abgeglichen.
    ========================================================= */
 
-const APP_VERSION = '2.6.0';
+const APP_VERSION = '2.6.1';
 const DATEN_KEY = 'spieleliste.daten.v1';
 const ANSICHT_KEY = 'spieleliste.ansicht.v1';
 const SYNC_KEY = 'spieleliste.sync.v1';
@@ -493,7 +493,7 @@ const STIFT = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 17.2V20h2
 function sterneHtml(wert, mitAktion = true) {
   let html = '';
   for (let i = 1; i <= 5; i++) {
-    html += `<button type="button" class="stern${i <= wert ? ' an' : ''}" ${mitAktion ? 'data-aktion="stern"' : ''} data-wert="${i}" aria-label="${i} von 5 Sternen" aria-pressed="${i <= wert}">★</button>`;
+    html += `<button type="button" class="stern${i <= wert ? ' an' : ''}" ${mitAktion ? 'data-aktion="stern"' : ''} data-wert="${i}" aria-label="${i} von 5 Sternen" aria-pressed="${i <= wert}">${i <= wert ? '★' : '☆'}</button>`;
   }
   return html;
 }
@@ -703,6 +703,26 @@ function autoTipp(liste) {
   return liste === 'wunschliste' ? autoKaufTipp() : autoStartTipp();
 }
 
+// Nur kurz angetestet: „angefangen“, aber unter einer Stunde gespielt und nicht im letzten Monat
+function nurAngetestet(s) {
+  return s.status === 'angefangen' && spielzeitMinuten(s.spielzeit) < 60 &&
+    !(s.zuletztGespielt && s.zuletztGespielt >= vorEinemMonat());
+}
+
+// Einmalige Korrektur beim Start: Spiele mit „zuletzt gespielt“ sind nicht mehr „offen“
+function statusAusSteamKorrigieren() {
+  let geaendert = 0;
+  for (const s of daten.spiele) {
+    if (s.liste === 'bibliothek' && s.status === 'offen' && s.zuletztGespielt) {
+      s.status = 'angefangen';
+      beruehren(s);
+      geaendert++;
+    }
+  }
+  if (geaendert) speichern();
+  return geaendert;
+}
+
 function autoStartTipp() {
   const katIndex = new Map(daten.kategorien.map((k, i) => [k.name, i]));
   const ordnung = (a, b) => (katIndex.get(a.kategorie) ?? 99) - (katIndex.get(b.kategorie) ?? 99) || a.reihenfolge - b.reihenfolge;
@@ -738,12 +758,13 @@ function autoStartTipp() {
       if (offenerVorgaenger) blockiert.add(s.id);
       if (s.status === 'offen' || s.status === 'angefangen') offenerVorgaenger = true;
     }
+    const richtigAngefangen = (s) => s.status === 'angefangen' && !nurAngetestet(s);
     // 2. Reihe fortsetzen: nächstes offenes Spiel nach dem zuletzt durchgespielten
     const durch = teil.filter((s) => s.status === 'durchgespielt');
     if (!durch.length) continue;
     const letztes = durch[durch.length - 1];
-    const naechstes = teil.slice(teil.indexOf(letztes) + 1).find((s) => s.status === 'offen');
-    if (naechstes && !teil.some((s) => s.status === 'angefangen')) {
+    const naechstes = teil.slice(teil.indexOf(letztes) + 1).find((s) => s.status === 'offen' || nurAngetestet(s));
+    if (naechstes && !teil.some(richtigAngefangen)) {
       const zeit = letztes.durchgespieltAm || letztes.geaendert;
       if (!fortsetzung || zeit > fortsetzung.zeit) fortsetzung = { vorher: letztes, naechstes, zeit };
     }
@@ -754,7 +775,7 @@ function autoStartTipp() {
   }
 
   // 3. Neu anfangen: kurz und groß aus dem Story-Wunsch (ohne reine Koop-Spiele)
-  const kandidaten = bib.filter((s) => s.status === 'offen' && !erwaehnt.has(s.id) && !blockiert.has(s.id) &&
+  const kandidaten = bib.filter((s) => (s.status === 'offen' || nurAngetestet(s)) && !erwaehnt.has(s.id) && !blockiert.has(s.id) &&
     kategorieVon(s.kategorie)?.bereich === 'Story-Wunsch' && !/koop/i.test(s.kategorie));
   const mitDauer = kandidaten.map((s) => ({ s, h: geschaetzteStunden(s) })).filter((x) => x.h);
   const kurz = mitDauer.find((x) => x.h <= 12);
@@ -1777,8 +1798,8 @@ async function steamAbgleich({ automatisch = false } = {}) {
       if (g.zuletzt) s.zuletztGespielt = g.zuletzt;
       const m = steamMerkmale(details[g.appid]);
       if (m) s.merkmale = m;
-      // Im letzten Monat gespielt, aber noch „offen“ → angefangen
-      if (s.status === 'offen' && s.zuletztGespielt && s.zuletztGespielt >= grenze) {
+      // Schon einmal gespielt, aber noch „offen“ → angefangen
+      if (s.status === 'offen' && s.zuletztGespielt) {
         s.status = 'angefangen';
         nunAngefangen.push(s.name);
       }
@@ -2059,10 +2080,10 @@ function steamEinrichten() {
         const n = st.neu.find((x) => x.appid === appid);
         if (!n) return;
         const kategorie = kategorieRaten(n.merkmale);
-        const imMonat = n.zuletzt && n.zuletzt >= vorEinemMonat();
+        const gespielt = Boolean(n.zuletzt);
         daten.spiele.push({
           id: neueId(), name: n.name, beschreibung: n.beschreibung || '', spielzeit: spielzeitText(n.minuten),
-          liste: 'bibliothek', kategorie, status: imMonat ? 'angefangen' : 'offen', notiz: '', bewertung: 0,
+          liste: 'bibliothek', kategorie, status: gespielt ? 'angefangen' : 'offen', notiz: '', bewertung: 0,
           reihenfolge: naechsteReihenfolge(kategorie), steamAppId: n.appid, durchgespieltAm: null,
           zuletztGespielt: n.zuletzt ?? null, merkmale: n.merkmale ?? null, preis: null, geaendert: jetzt(),
         });
@@ -2085,7 +2106,7 @@ function steamEinrichten() {
         s.spielzeit = spielzeitText(n.minuten);
         s.zuletztGespielt = n.zuletzt ?? s.zuletztGespielt;
         if (n.merkmale) s.merkmale = n.merkmale;
-        if (s.status === 'offen' && n.zuletzt && n.zuletzt >= vorEinemMonat()) s.status = 'angefangen';
+        if (s.status === 'offen' && n.zuletzt) s.status = 'angefangen';
         beruehren(s);
         zeigeHinweis(`„${s.name}“ ist jetzt „${n.name}“ in Steam zugeordnet`);
         break;
@@ -2439,6 +2460,7 @@ async function start() {
   bedienungEinrichten();
   try {
     await laden();
+    statusAusSteamKorrigieren();
     rendern();
   } catch (e) {
     console.error(e);
