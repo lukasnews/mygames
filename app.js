@@ -6,7 +6,7 @@
    eingerichtet – über Supabase zwischen Geräten abgeglichen.
    ========================================================= */
 
-const APP_VERSION = '2.6.1';
+const APP_VERSION = '2.6.2';
 const DATEN_KEY = 'spieleliste.daten.v1';
 const ANSICHT_KEY = 'spieleliste.ansicht.v1';
 const SYNC_KEY = 'spieleliste.sync.v1';
@@ -617,12 +617,12 @@ function aktuelleSpiele() {
   const bib = daten.spiele.filter((s) => s.liste === 'bibliothek');
   if (!hatSteamZeiten()) return bib.filter((s) => s.status === 'angefangen').sort((a, b) => b.geaendert.localeCompare(a.geaendert));
   const grenze = vorEinemMonat();
-  return bib.filter((s) => s.zuletztGespielt && s.zuletztGespielt >= grenze)
+  return bib.filter((s) => richtigGespielt(s) && s.zuletztGespielt >= grenze)
     .sort((a, b) => b.zuletztGespielt.localeCompare(a.zuletztGespielt));
 }
 
 function keinAktuellesSpielText() {
-  const letztes = daten.spiele.filter((s) => s.zuletztGespielt).sort((a, b) => b.zuletztGespielt.localeCompare(a.zuletztGespielt))[0];
+  const letztes = daten.spiele.filter(richtigGespielt).sort((a, b) => b.zuletztGespielt.localeCompare(a.zuletztGespielt))[0];
   return letztes
     ? `Zurzeit kein aktuelles Spiel – zuletzt gespielt: ${letztes.name}, ${relativeZeit(letztes.zuletztGespielt)}.`
     : 'Zurzeit kein aktuelles Spiel.';
@@ -709,15 +709,27 @@ function nurAngetestet(s) {
     !(s.zuletztGespielt && s.zuletztGespielt >= vorEinemMonat());
 }
 
-// Einmalige Korrektur beim Start: Spiele mit „zuletzt gespielt“ sind nicht mehr „offen“
+// Unter 30 Minuten Spielzeit war es meist nur ein Test, ob das Spiel läuft
+const ANGETESTET_MINUTEN = 30;
+
+function richtigGespielt(s) {
+  return Boolean(s.zuletztGespielt) && spielzeitMinuten(s.spielzeit) >= ANGETESTET_MINUTEN;
+}
+
+// Status nach Steam-Daten: ab 30 min gespielt → angefangen, darunter → offen.
+// Gibt den neuen Status zurück, wenn er sich geändert hat.
+function statusNachSpielzeit(s) {
+  if (s.liste !== 'bibliothek' || !s.zuletztGespielt) return null;
+  if (s.status === 'offen' && richtigGespielt(s)) { s.status = 'angefangen'; return 'angefangen'; }
+  if (s.status === 'angefangen' && !richtigGespielt(s)) { s.status = 'offen'; return 'offen'; }
+  return null;
+}
+
+// Beim Start: Status aller Spiele mit Steam-Daten an die Regel anpassen
 function statusAusSteamKorrigieren() {
   let geaendert = 0;
   for (const s of daten.spiele) {
-    if (s.liste === 'bibliothek' && s.status === 'offen' && s.zuletztGespielt) {
-      s.status = 'angefangen';
-      beruehren(s);
-      geaendert++;
-    }
+    if (statusNachSpielzeit(s)) { beruehren(s); geaendert++; }
   }
   if (geaendert) speichern();
   return geaendert;
@@ -1763,6 +1775,7 @@ async function steamAbgleich({ automatisch = false } = {}) {
     const zugeordnet = new Set();
     let spielzeiten = 0;
     const nunAngefangen = [];
+    const nunOffen = [];
 
     // App-IDs aus der Steam-Shop-Suche übernehmen (Spiel gibt es auf Steam, Name weicht ab)
     for (const z of data.zuordnung ?? []) {
@@ -1798,11 +1811,10 @@ async function steamAbgleich({ automatisch = false } = {}) {
       if (g.zuletzt) s.zuletztGespielt = g.zuletzt;
       const m = steamMerkmale(details[g.appid]);
       if (m) s.merkmale = m;
-      // Schon einmal gespielt, aber noch „offen“ → angefangen
-      if (s.status === 'offen' && s.zuletztGespielt) {
-        s.status = 'angefangen';
-        nunAngefangen.push(s.name);
-      }
+      // Ab 30 Minuten gespielt → angefangen, darunter (nur getestet) → offen
+      const neuerStatus = statusNachSpielzeit(s);
+      if (neuerStatus === 'angefangen') nunAngefangen.push(s.name);
+      if (neuerStatus === 'offen') nunOffen.push(s.name);
       if (stabil(s) !== vorher) beruehren(s);
     }
 
@@ -1848,7 +1860,7 @@ async function steamAbgleich({ automatisch = false } = {}) {
       konto: steamSpiele.map((g) => ({ appid: g.appid, name: g.name, minuten: g.minuten ?? 0, zuletzt: g.zuletzt ?? null })),
       neu,
       kandidaten,
-      bericht: { spielzeiten, nunAngefangen, warnungen, anzahl: steamSpiele.length },
+      bericht: { spielzeiten, nunAngefangen, nunOffen, warnungen, anzahl: steamSpiele.length },
       geaendert: jetzt(),
     };
     speichern();
@@ -1976,7 +1988,8 @@ function steamErgebnisAnzeigen() {
   const aktuell = aktuelleSpiele();
   if (aktuell.length) {
     teile.push(`<section><h3>🕹 Gerade dabei <span class="leise klein">(im letzten Monat gespielt)</span></h3><ul>${aktuell.map((s) => `<li><button class="tipp-spiel" data-spiel-id="${esc(s.id)}">${esc(s.name)}</button> <span class="leise">– ${esc(relativeZeit(s.zuletztGespielt))}</span></li>`).join('')}</ul>
-      ${b.nunAngefangen?.length ? `<p class="leise klein">Automatisch auf „Angefangen“ gesetzt: ${esc(b.nunAngefangen.join(', '))}</p>` : ''}</section>`);
+      ${b.nunAngefangen?.length ? `<p class="leise klein">Automatisch auf „Angefangen“ gesetzt: ${esc(b.nunAngefangen.join(', '))}</p>` : ''}
+      ${b.nunOffen?.length ? `<p class="leise klein">Unter 30 Minuten gespielt, daher wieder „Offen“: ${esc(b.nunOffen.join(', '))}</p>` : ''}</section>`);
   } else {
     teile.push(`<section><h3>🕹 Gerade dabei</h3><p>${esc(keinAktuellesSpielText())}</p></section>`);
   }
@@ -2080,7 +2093,7 @@ function steamEinrichten() {
         const n = st.neu.find((x) => x.appid === appid);
         if (!n) return;
         const kategorie = kategorieRaten(n.merkmale);
-        const gespielt = Boolean(n.zuletzt);
+        const gespielt = Boolean(n.zuletzt) && n.minuten >= ANGETESTET_MINUTEN;
         daten.spiele.push({
           id: neueId(), name: n.name, beschreibung: n.beschreibung || '', spielzeit: spielzeitText(n.minuten),
           liste: 'bibliothek', kategorie, status: gespielt ? 'angefangen' : 'offen', notiz: '', bewertung: 0,
@@ -2106,7 +2119,7 @@ function steamEinrichten() {
         s.spielzeit = spielzeitText(n.minuten);
         s.zuletztGespielt = n.zuletzt ?? s.zuletztGespielt;
         if (n.merkmale) s.merkmale = n.merkmale;
-        if (s.status === 'offen' && n.zuletzt) s.status = 'angefangen';
+        statusNachSpielzeit(s);
         beruehren(s);
         zeigeHinweis(`„${s.name}“ ist jetzt „${n.name}“ in Steam zugeordnet`);
         break;
