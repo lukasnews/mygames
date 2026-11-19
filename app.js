@@ -6,7 +6,7 @@
    eingerichtet – über Supabase zwischen Geräten abgeglichen.
    ========================================================= */
 
-const APP_VERSION = '2.6.2';
+const APP_VERSION = '2.7.0';
 const DATEN_KEY = 'spieleliste.daten.v1';
 const ANSICHT_KEY = 'spieleliste.ansicht.v1';
 const SYNC_KEY = 'spieleliste.sync.v1';
@@ -230,6 +230,8 @@ function normalisieren(roh, { startdaten = false } = {}) {
     vorlieben: st.vorlieben && typeof st.vorlieben === 'object' ? Object.fromEntries(Object.entries(st.vorlieben).filter(([, v]) => v === 1 || v === -1)) : {},
     ignoriert: liste(st.ignoriert).map(Number).filter(Boolean),
     ohneSteam: liste(st.ohneSteam).map(String),
+    nichtDurch: liste(st.nichtDurch).map(String),
+    erfolge: st.erfolge && typeof st.erfolge === 'object' && !Array.isArray(st.erfolge) ? st.erfolge : {},
     besitz: liste(st.besitz).map(Number).filter(Boolean),
     konto: liste(st.konto).filter((g) => g && g.appid).map((g) => ({
       appid: Number(g.appid), name: String(g.name ?? ''), minuten: Number(g.minuten) || 0, zuletzt: g.zuletzt ? zeitpunkt(g.zuletzt) : null,
@@ -401,6 +403,7 @@ function zusammenfuehren(lokal, fern) {
       ...steam,
       ignoriert: [...new Set([...sa.ignoriert, ...sb.ignoriert])].sort((x, y) => x - y),
       ohneSteam: [...new Set([...sa.ohneSteam, ...sb.ohneSteam])].sort(),
+      nichtDurch: [...new Set([...sa.nichtDurch, ...sb.nichtDurch])].sort(),
     };
   }
 
@@ -544,6 +547,7 @@ function spielHtml(s, kontext = {}) {
     meta.push(`<span>✓ Durchgespielt am ${new Date(s.durchgespieltAm).toLocaleDateString('de-DE')}</span>`);
   }
   if (s.liste === 'wunschliste' && s.preis) meta.push(`<span>${preisHtml(s.preis)}</span>`);
+  const durchHinweis = reihenfolgeModus ? '' : durchHinweisHtml(s);
   return `
     <article class="spiel" data-id="${esc(s.id)}">
       <div class="spiel-kopf">
@@ -555,6 +559,7 @@ function spielHtml(s, kontext = {}) {
         <a class="steam-link" href="${esc(steamLink(s))}" target="_blank" rel="noopener" aria-label="${esc(s.name)} auf Steam öffnen (${steamText})">${steamText} ↗</a>
       </div>
       ${s.notiz ? `<div class="spiel-notiz">${esc(s.notiz)}</div>` : ''}
+      ${durchHinweis}
       <div class="spiel-aktionen">${unten}</div>
       ${ansicht.kompakt && !reihenfolgeModus ? '<button class="link-knopf zuklappen" data-aktion="zuklappen">▲ Weniger anzeigen</button>' : ''}
     </article>`;
@@ -924,6 +929,7 @@ function tippEinrichten() {
 }
 
 function rendern() {
+  durchHinweisMap = new Map(durchHinweise().map((h) => [h.s.id, h]));
   tippRendern();
   for (const knopf of $$('.reiter-knopf')) {
     knopf.setAttribute('aria-selected', String(knopf.dataset.reiter === ansicht.reiter));
@@ -1057,6 +1063,8 @@ function listeEinrichten() {
       case 'aufklappen': aufgeklappt.add(id); rendern(); break;
       case 'zuklappen': aufgeklappt.delete(id); rendern(); break;
       case 'hoch': verschieben(s, -1); break;
+      case 'durch-ja': durchBestaetigen(id); break;
+      case 'durch-nein': durchAblehnen(id); break;
       case 'runter': verschieben(s, 1); break;
     }
   });
@@ -1761,7 +1769,11 @@ async function steamAbgleich({ automatisch = false } = {}) {
     const wunsch = daten.spiele.filter((s) => s.liste === 'wunschliste').map((s) => ({ id: s.id, name: s.name, appid: s.steamAppId }));
     const bibliothek = daten.spiele.filter((s) => s.liste === 'bibliothek' && !daten.steam.ohneSteam.includes(s.id))
       .map((s) => ({ id: s.id, name: s.name, appid: s.steamAppId }));
-    const data = await steamFunktionAufrufen({ mitDetails: [...new Set(bekannteDetails)], wunsch, bibliothek, vorschlaege: true });
+    // Erfolge: die Funktion wählt gespielte Spiele selbst; erledigte und abgelehnte überspringen
+    const erfolgeOhne = daten.spiele
+      .filter((s) => s.steamAppId && (!['offen', 'angefangen'].includes(s.status) || daten.steam.nichtDurch.includes(s.id)))
+      .map((s) => s.steamAppId);
+    const data = await steamFunktionAufrufen({ mitDetails: [...new Set(bekannteDetails)], wunsch, bibliothek, erfolge: 'auto', erfolgeOhne, vorschlaege: true });
     const steamSpiele = data?.spiele ?? [];
     if (!steamSpiele.length) throw new Error('Steam hat keine Spiele geliefert. Ist im Steam-Profil „Spieldetails“ auf „Öffentlich“ gestellt?');
     const details = data.details ?? {};
@@ -1858,6 +1870,7 @@ async function steamAbgleich({ automatisch = false } = {}) {
       letzterAbgleich: jetzt(),
       besitz: steamSpiele.map((g) => g.appid),
       konto: steamSpiele.map((g) => ({ appid: g.appid, name: g.name, minuten: g.minuten ?? 0, zuletzt: g.zuletzt ?? null })),
+      erfolge: { ...daten.steam.erfolge, ...(data.erfolge ?? {}) },
       neu,
       kandidaten,
       bericht: { spielzeiten, nunAngefangen, nunOffen, warnungen, anzahl: steamSpiele.length },
@@ -1994,6 +2007,15 @@ function steamErgebnisAnzeigen() {
     teile.push(`<section><h3>🕹 Gerade dabei</h3><p>${esc(keinAktuellesSpielText())}</p></section>`);
   }
 
+  // Vermutlich durchgespielt
+  const durch = durchHinweise();
+  if (durch.length) {
+    teile.push(`<section><h3>🏁 Vermutlich durchgespielt <span class="leise klein">(${durch.length})</span></h3>
+      <p class="leise klein">Aus deinen Steam-Erfolgen (z. B. Erfolg für das Story-Ende) und deiner Spielzeit im Vergleich zur geschätzten Dauer. Bitte bestätigen, die App setzt das nicht selbst.</p>
+      <ul class="steam-liste">${durch.map((h) => `<li><span><b>${esc(h.s.name)}</b><br><span class="leise klein">${esc(h.grund)}</span></span>
+        <span class="steam-knoepfe"><button class="klein-knopf haupt" data-steam="durch-ja" data-id="${esc(h.s.id)}">✓ Durchgespielt</button><button class="klein-knopf" data-steam="durch-nein" data-id="${esc(h.s.id)}">Noch nicht</button></span></li>`).join('')}</ul></section>`);
+  }
+
   // Gekauft erkannt: Wunschliste-Spiele, die du inzwischen besitzt
   const besitz = new Set(st.besitz);
   const gekauft = daten.spiele.filter((s) => s.liste === 'wunschliste' && s.steamAppId && besitz.has(s.steamAppId));
@@ -2128,6 +2150,8 @@ function steamEinrichten() {
         $('#dlg-steam').close();
         spielDialogOeffnen(k.dataset.id);
         return;
+      case 'durch-ja': durchBestaetigen(k.dataset.id); return;
+      case 'durch-nein': durchAblehnen(k.dataset.id); return;
       case 'ohne-steam':
         daten.steam = { ...st, ohneSteam: [...new Set([...st.ohneSteam, k.dataset.id])], geaendert: jetzt() };
         break;
@@ -2148,6 +2172,68 @@ function steamEinrichten() {
     rendern();
     steamErgebnisAnzeigen();
   });
+}
+
+/* ---------- Vermutlich durchgespielt (Erfolge und Spielzeit) ---------- */
+
+let durchHinweisMap = new Map();
+
+// Hinweise, dass ein Spiel durchgespielt ist. Setzt nichts selbst, du bestätigst.
+function durchHinweise() {
+  const st = daten.steam;
+  const hinweise = [];
+  for (const s of daten.spiele) {
+    if (s.liste !== 'bibliothek' || !['offen', 'angefangen'].includes(s.status)) continue;
+    if (st.nichtDurch.includes(s.id) || !richtigGespielt(s)) continue;
+    const e = s.steamAppId ? st.erfolge[s.steamAppId] : null;
+    if (e?.abschluss) {
+      hinweise.push({ s, zeit: e.abschluss.zeit, stark: true,
+        grund: `Erfolg „${e.abschluss.name}“ freigeschaltet${e.abschluss.zeit ? ' am ' + new Date(e.abschluss.zeit).toLocaleDateString('de-DE') : ''}` });
+      continue;
+    }
+    if (e && e.gesamt >= 10 && e.erreicht / e.gesamt >= 0.9) {
+      hinweise.push({ s, zeit: null, stark: true, grund: `${e.erreicht} von ${e.gesamt} Erfolgen freigeschaltet` });
+      continue;
+    }
+    // Spielzeit über der geschätzten Dauer – nur bei Story-Spielen (Open World hat kein „Ende“)
+    const h = geschaetzteStunden(s);
+    if (h && kategorieVon(s.kategorie)?.bereich === 'Story-Wunsch' && spielzeitMinuten(s.spielzeit) / 60 >= h &&
+        !(e && e.abschlussVorhanden)) {
+      hinweise.push({ s, zeit: null, stark: false, grund: `${s.spielzeit} gespielt, das Spiel dauert ca. ${String(h).replace('.', ',')} Std.` });
+    }
+  }
+  return hinweise.sort((a, b) => b.stark - a.stark || (b.zeit ?? '').localeCompare(a.zeit ?? ''));
+}
+
+function durchBestaetigen(id) {
+  const s = daten.spiele.find((x) => x.id === id);
+  const h = durchHinweisMap.get(id) || durchHinweise().find((x) => x.s.id === id);
+  if (!s) return;
+  sicherungMachen();
+  setzeStatus(s, 'durchgespielt');
+  if (h?.zeit) s.durchgespieltAm = h.zeit;
+  beruehren(s);
+  speichern();
+  rendern();
+  if ($('#dlg-steam').open) steamErgebnisAnzeigen();
+  zeigeHinweis(`🎉 „${s.name}“ durchgespielt!`, true);
+}
+
+function durchAblehnen(id) {
+  const st = daten.steam;
+  sicherungMachen();
+  daten.steam = { ...st, nichtDurch: [...new Set([...st.nichtDurch, id])], geaendert: jetzt() };
+  speichern();
+  rendern();
+  if ($('#dlg-steam').open) steamErgebnisAnzeigen();
+  zeigeHinweis('Alles klar, wird nicht mehr vorgeschlagen', true);
+}
+
+function durchHinweisHtml(s) {
+  const h = durchHinweisMap.get(s.id);
+  if (!h) return '';
+  return `<div class="durch-hinweis"><span>🏁 <b>Vermutlich durchgespielt</b> – ${esc(h.grund)}</span>
+    <span class="steam-knoepfe"><button class="klein-knopf haupt" data-aktion="durch-ja">✓ Durchgespielt</button><button class="klein-knopf" data-aktion="durch-nein">Noch nicht</button></span></div>`;
 }
 
 /* ---------- Wunschliste: Angebote und Vorschläge direkt in der Liste ---------- */

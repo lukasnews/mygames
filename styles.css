@@ -413,3 +413,11 @@ a.klein-knopf { text-decoration: none; color: inherit; }
 .zuordnung-box h4 { margin: 12px 0 0; font-size: .95rem; }
 
 .stern:not(.an) { color: var(--text-leise); opacity: .6; }
+
+/* Vermutlich durchgespielt */
+.durch-hinweis {
+  display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between;
+  padding: 8px 10px; border-radius: 10px; font-size: .9rem;
+  background: var(--st-durch-bg); color: var(--st-durch);
+}
+.durch-hinweis > span:first-child { flex: 1 1 200px; }

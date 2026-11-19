@@ -7,6 +7,8 @@
 // Anfrage (alles optional):
 //   { mitDetails: [appid, …],              // Spiele, deren Genres die App schon kennt
 //     bibliothek: [{ id, name, appid }],   // nicht gefundene Spiele im Steam-Shop nachschlagen
+//     erfolge: 'auto' | [appid, …],        // Erfolge prüfen: Hinweis auf „durchgespielt“
+//     erfolgeOhne: [appid, …],             // bei 'auto' überspringen (erledigt oder abgelehnt)
 //     wunsch: [{ id, name, appid }],       // Wunschliste: Preise und App-IDs nachschlagen
 //     vorschlaege: true }                  // aktuelle Steam-Spiele als Kandidaten
 // Ohne Angaben liefert sie nur die Bibliothek (wie Version 1).
@@ -73,6 +75,33 @@ async function details(appid: number) {
       .replace(/&nbsp;/g, ' ').replace(/&quot;/g, '"').replace(/&#0?39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&')
       .trim().slice(0, 400),
     preis: daten.is_free ? { final: 0, initial: 0, waehrung: 'EUR', rabatt: 0 } : preisAus(daten.price_overview),
+  };
+}
+
+// Erfolge, die typischerweise das Ende der Story markieren (deutsch, englisch und interne Namen)
+const ABSCHLUSS = /(durchgespielt|abspann|spiel (?:beendet|abgeschlossen|durch)|(?:beende|schlie(?:ß|ss)e|schaffe)\w* (?:das|die|den) (?:spiel|story|geschichte|kampagne|hauptstory|hauptgeschichte)|(?:story|geschichte|kampagne|hauptstory) (?:beendet|abgeschlossen)|finish(?:ed)?[ _]?(?:the[ _])?(?:game|story|campaign)|complet(?:e|ed)[ _]?(?:the[ _])?(?:game|story|campaign|main[ _]story)|beat[ _](?:the[ _])?game|game[ _]?(?:complete|completed|finished|beaten)|credits|ending|the[ _]end\b)/i;
+const MAX_ERFOLGE = 40;
+
+const zeitAus = (unix: number) => (unix ? new Date(unix * 1000).toISOString() : null);
+
+async function erfolgeHolen(appid: number, apiSchluessel: string, steamId: string) {
+  const u = new URL('https://api.steampowered.com/ISteamUserStats/GetPlayerAchievements/v1/');
+  u.searchParams.set('key', apiSchluessel);
+  u.searchParams.set('steamid', steamId);
+  u.searchParams.set('appid', String(appid));
+  u.searchParams.set('l', SPRACHE);
+  const d = await holeJson(u.toString());
+  const liste = d?.playerstats?.achievements;
+  if (!Array.isArray(liste) || !liste.length) return null;   // Spiel ohne Erfolge
+  const erreicht = liste.filter((a: any) => a.achieved);
+  const abschluss = liste.filter((a: any) => ABSCHLUSS.test(`${a.apiname ?? ''} ${a.name ?? ''} ${a.description ?? ''}`));
+  const geschafft = abschluss.filter((a: any) => a.achieved).sort((a: any, b: any) => a.unlocktime - b.unlocktime);
+  return {
+    appid,
+    gesamt: liste.length,
+    erreicht: erreicht.length,
+    abschlussVorhanden: abschluss.length > 0,
+    abschluss: geschafft.length ? { name: geschafft[0].name ?? geschafft[0].apiname, zeit: zeitAus(geschafft[0].unlocktime) } : null,
   };
 }
 
@@ -153,7 +182,7 @@ Deno.serve(async (req) => {
   const besitz = new Set(spiele.map((s: any) => s.appid));
 
   // Nur Bibliothek gewünscht (Version-1-Verhalten)
-  if (!anfrage.mitDetails && !anfrage.wunsch && !anfrage.vorschlaege && !anfrage.bibliothek) return antwort({ spiele });
+  if (!anfrage.mitDetails && !anfrage.wunsch && !anfrage.vorschlaege && !anfrage.bibliothek && !anfrage.erfolge) return antwort({ spiele });
 
   // 2. Genres für eigene Spiele, die die App noch nicht kennt (zuletzt gespielte zuerst)
   const bekannt = new Set((anfrage.mitDetails ?? []).map(Number));
@@ -200,7 +229,19 @@ Deno.serve(async (req) => {
     return passend ? { id: b.id, appid: passend.id, name: passend.name, besitz: besitz.has(passend.id) } : null;
   }, 3)).filter(Boolean);
 
-  // 5. Kandidaten für Vorschläge: aktuelle Bestseller, Angebote und Neuerscheinungen
+  // 5. Erfolge: Gibt es einen freigeschalteten Erfolg für das Story-Ende?
+  //    erfolge: 'auto' → gespielte Spiele (ab 30 min) selbst auswählen, außer denen in erfolgeOhne
+  const ohne = new Set((anfrage.erfolgeOhne ?? []).map(Number));
+  const erfolgIds: number[] = anfrage.erfolge === 'auto'
+    ? spiele.filter((s: any) => s.minuten >= 30 && !ohne.has(s.appid))
+      .sort((a: any, b: any) => (b.zuletzt ?? '').localeCompare(a.zuletzt ?? '')).map((s: any) => s.appid)
+    : (Array.isArray(anfrage.erfolge) ? anfrage.erfolge.map(Number) : []);
+  const erfolgListe = (await nacheinander(erfolgIds.filter((id: number) => besitz.has(id)).slice(0, MAX_ERFOLGE),
+    (appid: number) => erfolgeHolen(appid, apiSchluessel, steamId))).filter(Boolean);
+  const erfolge: Record<number, any> = {};
+  for (const e of erfolgListe) erfolge[e!.appid] = e;
+
+  // 6. Kandidaten für Vorschläge: aktuelle Bestseller, Angebote und Neuerscheinungen
   let kandidaten: any[] = [];
   if (anfrage.vorschlaege) {
     const featured = await holeJson(`https://store.steampowered.com/api/featuredcategories/?cc=${LAND}&l=${SPRACHE}`);
@@ -227,5 +268,5 @@ Deno.serve(async (req) => {
     }
   }
 
-  return antwort({ spiele, details: detailsNachId, wunsch, zuordnung, kandidaten, warnungen });
+  return antwort({ spiele, details: detailsNachId, wunsch, zuordnung, erfolge, kandidaten, warnungen });
 });
