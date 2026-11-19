@@ -6,7 +6,7 @@
    eingerichtet – über Supabase zwischen Geräten abgeglichen.
    ========================================================= */
 
-const APP_VERSION = '2.7.2';
+const APP_VERSION = '2.7.3';
 const DATEN_KEY = 'spieleliste.daten.v1';
 const ANSICHT_KEY = 'spieleliste.ansicht.v1';
 const SYNC_KEY = 'spieleliste.sync.v1';
@@ -2540,9 +2540,13 @@ function serviceWorkerRegistrieren() {
   if (!('serviceWorker' in navigator)) return;
   if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') return;
 
+  // Neu laden nur, wenn eine vorherige Version ersetzt wurde – nicht beim allerersten Besuch,
+  // wenn der Service Worker die Seite erstmals übernimmt (sonst gingen Eingaben verloren).
+  const hatteVersion = Boolean(navigator.serviceWorker.controller);
   let neuGeladen = false;
+  let aktualisierenGewuenscht = false;
   navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (neuGeladen) return;
+    if (neuGeladen || !(hatteVersion || aktualisierenGewuenscht)) return;
     neuGeladen = true;
     location.reload();
   });
@@ -2550,7 +2554,7 @@ function serviceWorkerRegistrieren() {
   const updateAnbieten = (worker) => {
     zeigeHinweis('Neue Version verfügbar', {
       knopf: 'Aktualisieren', dauer: 0,
-      aktion: () => worker.postMessage({ typ: 'jetzt-aktivieren' }),
+      aktion: () => { aktualisierenGewuenscht = true; worker.postMessage({ typ: 'jetzt-aktivieren' }); },
     });
   };
 
