@@ -6,7 +6,7 @@
    eingerichtet – über Supabase zwischen Geräten abgeglichen.
    ========================================================= */
 
-const APP_VERSION = '2.4.1';
+const APP_VERSION = '2.4.2';
 const DATEN_KEY = 'spieleliste.daten.v1';
 const ANSICHT_KEY = 'spieleliste.ansicht.v1';
 const SYNC_KEY = 'spieleliste.sync.v1';
@@ -1921,7 +1921,7 @@ function steamErgebnisAnzeigen() {
     const auswahl = offeneNeu.length
       ? `<option value="">Steam-Spiel wählen …</option>${offeneNeu.map((n) => `<option value="${n.appid}">${esc(n.name)}</option>`).join('')}`
       : '';
-    teile.push(`<section><details class="zuordnung-box"><summary><h3>❓ Nicht zugeordnet <span class="leise klein">(${nichtZugeordnet.length})</span></h3></summary>
+    teile.push(`<section><details class="zuordnung-box"${zuordnungOffen ? ' open' : ''}><summary><h3>❓ Nicht zugeordnet <span class="leise klein">(${nichtZugeordnet.length})</span></h3></summary>
       <p class="leise klein">Diese Spiele aus deiner App wurden in deinem Steam-Konto nicht gefunden, meist weil der Name abweicht. Wähle das passende Steam-Spiel, trag unter ✎ die Steam-App-ID ein oder blende Einträge aus, die nicht aus Steam stammen (z. B. Sammel-Einträge).</p>
       <ul class="steam-liste">${nichtZugeordnet.map((s) => `<li><span><b>${esc(s.name)}</b><br><span class="leise klein">${esc(s.kategorie)}${s.steamAppId ? ` · App-ID ${s.steamAppId} nicht in deinem Konto` : ''}</span></span>
         <span class="steam-knoepfe">${auswahl ? `<select class="zuordnung" data-id="${esc(s.id)}" aria-label="Steam-Spiel für ${esc(s.name)} wählen">${auswahl}</select><button class="klein-knopf haupt" data-steam="zuordnen" data-id="${esc(s.id)}">Zuordnen</button>` : ''}<button class="klein-knopf" data-steam="bearbeiten" data-id="${esc(s.id)}" aria-label="${esc(s.name)} bearbeiten">✎</button><button class="klein-knopf" data-steam="ohne-steam" data-id="${esc(s.id)}" aria-label="${esc(s.name)} ausblenden">Ausblenden</button></span></li>`).join('')}</ul></details></section>`);
@@ -1963,8 +1963,14 @@ function steamErgebnisAnzeigen() {
   box.innerHTML = teile.join('');
 }
 
+let zuordnungOffen = false;
+
 function steamEinrichten() {
   $('#steam-los').addEventListener('click', () => steamAbgleich());
+  // Auf-/Zuklappen von „Nicht zugeordnet“ merken, damit es nach jeder Aktion offen bleibt
+  $('#steam-ergebnis').addEventListener('toggle', (e) => {
+    if (e.target.matches?.('.zuordnung-box')) zuordnungOffen = e.target.open;
+  }, true);
   $('#steam-ergebnis').addEventListener('click', (e) => {
     const link = e.target.closest('[data-spiel-id]');
     if (link) {
