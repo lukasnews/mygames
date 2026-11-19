@@ -409,3 +409,5 @@ a.klein-knopf { text-decoration: none; color: inherit; }
 .spiel.vorschlag { background: color-mix(in srgb, var(--akzent-weich) 35%, var(--flaeche)); }
 .spiel-beschr.kurz { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .mini-sale { color: var(--gefahr); font-weight: 700; font-size: .85rem; white-space: nowrap; }
+
+.zuordnung-box h4 { margin: 12px 0 0; font-size: .95rem; }

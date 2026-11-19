@@ -6,6 +6,7 @@
 //
 // Anfrage (alles optional):
 //   { mitDetails: [appid, …],              // Spiele, deren Genres die App schon kennt
+//     bibliothek: [{ id, name, appid }],   // nicht gefundene Spiele im Steam-Shop nachschlagen
 //     wunsch: [{ id, name, appid }],       // Wunschliste: Preise und App-IDs nachschlagen
 //     vorschlaege: true }                  // aktuelle Steam-Spiele als Kandidaten
 // Ohne Angaben liefert sie nur die Bibliothek (wie Version 1).
@@ -78,6 +79,14 @@ async function details(appid: number) {
 const schluessel = (name: string) =>
   name.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\(.*?\)/g, '').replace(/&/g, 'and').replace(/[^a-z0-9]+/g, '');
 
+// Ähnliche Namen: einer beginnt mit dem anderen und ist nicht viel länger (gleiche Regel wie in der App)
+const aehnlich = (a: string, b: string) => {
+  if (!a || !b) return false;
+  if (a === b) return true;
+  const [kurz, lang] = a.length <= b.length ? [a, b] : [b, a];
+  return lang.startsWith(kurz) && kurz.length >= 4 && kurz.length / lang.length >= 0.6;
+};
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
 
@@ -144,7 +153,7 @@ Deno.serve(async (req) => {
   const besitz = new Set(spiele.map((s: any) => s.appid));
 
   // Nur Bibliothek gewünscht (Version-1-Verhalten)
-  if (!anfrage.mitDetails && !anfrage.wunsch && !anfrage.vorschlaege) return antwort({ spiele });
+  if (!anfrage.mitDetails && !anfrage.wunsch && !anfrage.vorschlaege && !anfrage.bibliothek) return antwort({ spiele });
 
   // 2. Genres für eigene Spiele, die die App noch nicht kennt (zuletzt gespielte zuerst)
   const bekannt = new Set((anfrage.mitDetails ?? []).map(Number));
@@ -176,7 +185,22 @@ Deno.serve(async (req) => {
     return { id: w.id, appid, preis, besitz: appid ? besitz.has(appid) : false };
   }, 3);
 
-  // 4. Kandidaten für Vorschläge: aktuelle Bestseller, Angebote und Neuerscheinungen
+  // 4. Spiele der App, die nicht im Konto gefunden wurden: im Steam-Shop nach der App-ID suchen
+  const kontoSchluessel = spiele.map((s: any) => schluessel(s.name));
+  const offen = (anfrage.bibliothek ?? []).filter((b: any) => {
+    if (b.appid) return false; // App-ID schon bekannt
+    const k = schluessel(String(b.name));
+    return !kontoSchluessel.some((x: string) => aehnlich(k, x));
+  }).slice(0, 30);
+  const zuordnung = (await nacheinander(offen, async (b: any) => {
+    const suche = await holeJson(`https://store.steampowered.com/api/storesearch/?term=${encodeURIComponent(String(b.name).replace(/\(.*?\)/g, ''))}&l=${SPRACHE}&cc=${LAND}`);
+    const k = schluessel(String(b.name));
+    const treffer = suche?.items ?? [];
+    const passend = treffer.find((t: any) => schluessel(t.name) === k) ?? treffer.find((t: any) => aehnlich(k, schluessel(t.name)));
+    return passend ? { id: b.id, appid: passend.id, name: passend.name, besitz: besitz.has(passend.id) } : null;
+  }, 3)).filter(Boolean);
+
+  // 5. Kandidaten für Vorschläge: aktuelle Bestseller, Angebote und Neuerscheinungen
   let kandidaten: any[] = [];
   if (anfrage.vorschlaege) {
     const featured = await holeJson(`https://store.steampowered.com/api/featuredcategories/?cc=${LAND}&l=${SPRACHE}`);
@@ -203,5 +227,5 @@ Deno.serve(async (req) => {
     }
   }
 
-  return antwort({ spiele, details: detailsNachId, wunsch, kandidaten, warnungen });
+  return antwort({ spiele, details: detailsNachId, wunsch, zuordnung, kandidaten, warnungen });
 });

@@ -1,7 +1,7 @@
 // Service Worker: macht die App offline nutzbar.
 // WICHTIG: Bei jeder Änderung an den App-Dateien VERSION erhöhen –
 // dann bekommt jedes Gerät den Hinweis „Neue Version verfügbar“.
-const VERSION = 'spieleliste-v2.5.0';
+const VERSION = 'spieleliste-v2.6.0';
 const DATEIEN = [
   './',
   './index.html',
