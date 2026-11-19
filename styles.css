@@ -421,3 +421,7 @@ a.klein-knopf { text-decoration: none; color: inherit; }
   background: var(--st-durch-bg); color: var(--st-durch);
 }
 .durch-hinweis > span:first-child { flex: 1 1 200px; }
+
+.doppelt { display: block; margin-top: 6px; padding: 6px 8px; border-radius: 8px; font-size: .88rem;
+  background: var(--tipp-bg); color: var(--tipp-text); }
+.doppelt .klein-knopf { margin-top: 6px; }

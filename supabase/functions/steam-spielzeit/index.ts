@@ -109,11 +109,13 @@ const schluessel = (name: string) =>
   name.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\(.*?\)/g, '').replace(/&/g, 'and').replace(/[^a-z0-9]+/g, '');
 
 // Ähnliche Namen: einer beginnt mit dem anderen und ist nicht viel länger (gleiche Regel wie in der App)
+// Gleiches Spiel nur, wenn der längere Name bloß eine Ausgabe-Bezeichnung anhängt (wie in der App)
+const NUR_AUSGABE = /^(?:legacy|enhanced|remastered|remaster|redux|definitive|complete|goty|gameoftheyear|edition|deluxe|anniversary|directorscut|ultimate|standard|hd|special|premium|gold|reloaded|digital|classic)+$/;
 const aehnlich = (a: string, b: string) => {
   if (!a || !b) return false;
   if (a === b) return true;
   const [kurz, lang] = a.length <= b.length ? [a, b] : [b, a];
-  return lang.startsWith(kurz) && kurz.length >= 4 && kurz.length / lang.length >= 0.6;
+  return kurz.length >= 4 && lang.startsWith(kurz) && NUR_AUSGABE.test(lang.slice(kurz.length));
 };
 
 Deno.serve(async (req) => {

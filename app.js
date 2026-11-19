@@ -6,7 +6,7 @@
    eingerichtet – über Supabase zwischen Geräten abgeglichen.
    ========================================================= */
 
-const APP_VERSION = '2.7.3';
+const APP_VERSION = '2.8.1';
 const DATEN_KEY = 'spieleliste.daten.v1';
 const ANSICHT_KEY = 'spieleliste.ansicht.v1';
 const SYNC_KEY = 'spieleliste.sync.v1';
@@ -448,6 +448,10 @@ function zeigeHinweis(text, optionen = {}) {
   if (optionen === true) optionen = { knopf: 'Rückgängig', aktion: rueckgaengig };
   const { knopf = null, aktion = null, dauer = knopf ? 6000 : 2600 } = optionen;
   const t = $('#toast');
+  // Liegt ein Fenster offen, muss der Hinweis darin stehen – sonst liegt das Fenster darüber
+  const fenster = document.querySelector('dialog[open]');
+  const ziel = fenster || document.body;
+  if (t.parentElement !== ziel) ziel.appendChild(t);
   $('#toast-text').textContent = text;
   $('#toast-knopf').hidden = !knopf;
   $('#toast-knopf').textContent = knopf ?? '';
@@ -1744,10 +1748,14 @@ function steamDialogOeffnen() {
 
 // Ähnliche Namen: einer beginnt mit dem anderen und ist nicht viel länger
 // („Grand Theft Auto V“ ≈ „Grand Theft Auto V Legacy“, aber nicht „Counter-Strike: Source“ für den Sammel-Eintrag)
+// Gleiches Spiel nur, wenn der längere Name bloß eine Ausgabe-Bezeichnung anhängt
+// („… Legacy“, „… Complete Edition“) – Zahlen, „II“ oder „Too“ sind Fortsetzungen.
+const NUR_AUSGABE = /^(?:legacy|enhanced|remastered|remaster|redux|definitive|complete|goty|gameoftheyear|edition|deluxe|anniversary|directorscut|ultimate|standard|hd|special|premium|gold|reloaded|digital|classic)+$/;
 function steamAehnlich(a, b) {
-  if (!a || !b || a === b) return a === b && Boolean(a);
+  if (!a || !b) return false;
+  if (a === b) return true;
   const [kurz, lang] = a.length <= b.length ? [a, b] : [b, a];
-  return lang.startsWith(kurz) && kurz.length >= 4 && kurz.length / lang.length >= 0.6;
+  return kurz.length >= 4 && lang.startsWith(kurz) && NUR_AUSGABE.test(lang.slice(kurz.length));
 }
 
 function steamSchluessel(name) {
@@ -2056,10 +2064,18 @@ function steamErgebnisAnzeigen() {
   const nichtGefunden = offen.filter((s) => !s.steamAppId);
   const nichtImKonto = offen.filter((s) => s.steamAppId);
   if (st.besitz.length && offen.length) {
-    const auswahl = frei.length
-      ? `<option value="">Steam-Spiel wählen (${frei.length}) …</option>${frei.map((g) => `<option value="${g.appid}">${esc(g.name)}</option>`).join('')}`
+    // Auswahl: alle Spiele des Steam-Kontos – freie zuerst, schon zugeordnete in eigener Gruppe
+    const belegt = st.konto.filter((g) => vergeben.has(g.appid)).sort((a, c) => a.name.localeCompare(c.name, 'de'));
+    const besitzerName = (appid) => daten.spiele.find((x) => x.steamAppId === appid)?.name ?? '';
+    const auswahl = st.konto.length
+      ? `<option value="">Steam-Spiel wählen …</option>${frei.length ? `<optgroup label="Noch frei (${frei.length})">${frei.map((g) => `<option value="${g.appid}">${esc(g.name)}</option>`).join('')}</optgroup>` : ''}${belegt.length ? `<optgroup label="Schon zugeordnet – wird zusammengeführt">${belegt.map((g) => `<option value="${g.appid}">${esc(g.name)} (→ ${esc(besitzerName(g.appid))})</option>`).join('')}</optgroup>` : ''}`
       : '';
-    const zeile = (s, hinweis) => `<li><span><b>${esc(s.name)}</b><br><span class="leise klein">${esc(s.kategorie)}${hinweis}</span></span>
+    const doppelHtml = (s) => {
+      const d = doppelterEintrag(s);
+      if (!d) return '';
+      return `<span class="doppelt">🔁 Doppelt? „${esc(d.t.name)}“ hat schon das Steam-Spiel „${esc(d.g.name)}“. <button class="klein-knopf haupt" data-steam="zusammen" data-id="${esc(s.id)}" data-andere="${esc(d.t.id)}">Zusammenführen</button></span>`;
+    };
+    const zeile = (s, hinweis) => `<li><span><b>${esc(s.name)}</b><br><span class="leise klein">${esc(s.kategorie)}${hinweis}</span>${doppelHtml(s)}</span>
         <span class="steam-knoepfe">${auswahl ? `<select class="zuordnung" data-id="${esc(s.id)}" aria-label="Steam-Spiel für ${esc(s.name)} wählen">${auswahl}</select><button class="klein-knopf haupt" data-steam="zuordnen" data-id="${esc(s.id)}">Zuordnen</button>` : ''}<button class="klein-knopf" data-steam="bearbeiten" data-id="${esc(s.id)}" aria-label="${esc(s.name)} bearbeiten">✎</button><button class="klein-knopf" data-steam="ohne-steam" data-id="${esc(s.id)}" aria-label="${esc(s.name)} ausblenden">Ausblenden</button></span></li>`;
     teile.push(`<section><details class="zuordnung-box"${zuordnungOffen ? ' open' : ''}><summary><h3>❓ Nicht zugeordnet <span class="leise klein">(${offen.length})</span></h3></summary>
       ${nichtGefunden.length ? `<p class="leise klein">Kein passendes Spiel in deinem Steam-Konto gefunden. Wähle es aus deinen Steam-Spielen, trag unter ✎ die Steam-App-ID ein oder blende Einträge aus, die nicht zu einem einzelnen Steam-Spiel passen (z. B. Sammel-Einträge).</p>
@@ -2158,6 +2174,9 @@ function steamEinrichten() {
         const wahl = Number($(`select.zuordnung[data-id="${CSS.escape(k.dataset.id)}"]`)?.value);
         const g = st.konto.find((x) => x.appid === wahl);
         if (!s || !g) { zeigeHinweis('Bitte zuerst ein Steam-Spiel wählen'); return; }
+        // Steam-Spiel gehört schon zu einem anderen Eintrag → die beiden zusammenführen
+        const anderer = daten.spiele.find((x) => x.id !== s.id && x.steamAppId === g.appid);
+        if (anderer) { spieleZusammenfuehren(s, anderer); return; }
         const n = { ...g, merkmale: st.neu.find((x) => x.appid === wahl)?.merkmale ?? null };
         s.steamAppId = n.appid;
         s.spielzeit = spielzeitText(n.minuten);
@@ -2174,6 +2193,12 @@ function steamEinrichten() {
         return;
       case 'durch-ja': durchBestaetigen(k.dataset.id); return;
       case 'durch-nein': durchAblehnen(k.dataset.id); return;
+      case 'zusammen': {
+        const behalten = daten.spiele.find((x) => x.id === k.dataset.id);
+        const weg = daten.spiele.find((x) => x.id === k.dataset.andere);
+        if (behalten && weg) spieleZusammenfuehren(behalten, weg);
+        return;
+      }
       case 'ohne-steam':
         daten.steam = { ...st, ohneSteam: [...new Set([...st.ohneSteam, k.dataset.id])], geaendert: jetzt() };
         break;
@@ -2261,6 +2286,50 @@ function durchHinweisHtml(s) {
   if (!h) return '';
   return `<div class="durch-hinweis"><span>🏁 <b>Vermutlich durchgespielt</b> – ${esc(h.grund)}</span>
     <span class="steam-knoepfe"><button class="klein-knopf haupt" data-aktion="durch-ja">✓ Durchgespielt</button><button class="klein-knopf" data-aktion="durch-nein">Noch nicht</button></span></div>`;
+}
+
+/* ---------- Doppelte Einträge zusammenführen ---------- */
+
+// Lockere Ähnlichkeit für die Suche nach Doppelten („Grand Theft Auto V“ ~ „Grand Theft Auto V Legacy“)
+function lockerAehnlich(a, b) {
+  return steamAehnlich(a, b);
+}
+
+// Findet zu einem nicht zugeordneten Spiel einen anderen Eintrag, der das ähnliche Steam-Spiel schon hat
+function doppelterEintrag(s) {
+  const k = steamSchluessel(s.name);
+  for (const g of daten.steam.konto) {
+    if (!lockerAehnlich(k, steamSchluessel(g.name))) continue;
+    const t = daten.spiele.find((x) => x.id !== s.id && x.steamAppId === g.appid);
+    if (t) return { t, g };
+  }
+  return null;
+}
+
+const STATUS_FORTSCHRITT = { offen: 0, angefangen: 1, abgebrochen: 2, durchgespielt: 3 };
+
+// „behalten“ bleibt (Beschreibung, Kategorie, Reihenfolge); „weg“ liefert Steam-Daten und verschwindet
+function spieleZusammenfuehren(behalten, weg) {
+  sicherungMachen();
+  behalten.steamAppId = weg.steamAppId;
+  if (weg.spielzeit) behalten.spielzeit = weg.spielzeit;
+  if ((weg.zuletztGespielt ?? '') > (behalten.zuletztGespielt ?? '')) behalten.zuletztGespielt = weg.zuletztGespielt;
+  if (weg.merkmale) behalten.merkmale = weg.merkmale;
+  if (!behalten.beschreibung && weg.beschreibung) behalten.beschreibung = weg.beschreibung;
+  if ((STATUS_FORTSCHRITT[weg.status] ?? 0) > (STATUS_FORTSCHRITT[behalten.status] ?? 0)) {
+    behalten.status = weg.status;
+    behalten.durchgespieltAm = weg.durchgespieltAm;
+  }
+  behalten.bewertung = Math.max(behalten.bewertung, weg.bewertung);
+  if (weg.notiz && weg.notiz !== behalten.notiz) behalten.notiz = [behalten.notiz, weg.notiz].filter(Boolean).join(' · ');
+  statusNachSpielzeit(behalten);
+  beruehren(behalten);
+  daten.spiele = daten.spiele.filter((x) => x.id !== weg.id);
+  daten.geloescht[weg.id] = jetzt();
+  speichern();
+  rendern();
+  if ($('#dlg-steam').open) steamErgebnisAnzeigen();
+  zeigeHinweis(`„${weg.name}“ mit „${behalten.name}“ zusammengeführt`, true);
 }
 
 /* ---------- Wunschliste: Angebote und Vorschläge direkt in der Liste ---------- */
