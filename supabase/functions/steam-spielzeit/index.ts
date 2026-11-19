@@ -15,10 +15,27 @@ const antwort = (inhalt: unknown, status = 200) =>
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
 
-  const schluessel = Deno.env.get('STEAM_API_KEY');
-  const steamId = Deno.env.get('STEAM_ID');
-  if (!schluessel || !steamId) {
-    return antwort({ fehler: 'In Supabase fehlen die Secrets STEAM_API_KEY oder STEAM_ID.' }, 500);
+  // Leerzeichen und Zeilenumbrüche vom Kopieren entfernen
+  const schluessel = (Deno.env.get('STEAM_API_KEY') ?? '').trim();
+  const steamId = (Deno.env.get('STEAM_ID') ?? '').trim();
+
+  const fehlend = [!schluessel && 'STEAM_API_KEY', !steamId && 'STEAM_ID'].filter(Boolean);
+  if (fehlend.length) {
+    // Nur die NAMEN vorhandener Steam-Secrets nennen (nie die Werte), um Tippfehler zu finden
+    const vorhanden = Object.keys(Deno.env.toObject()).filter((n) => /steam/i.test(n));
+    const gesehen = vorhanden.length ? `Gefunden habe ich: ${vorhanden.join(', ')}.` : 'Ich finde gar kein Secret mit „STEAM“ im Namen.';
+    return antwort({
+      fehler: `In Supabase ${fehlend.length > 1 ? 'fehlen die Secrets' : 'fehlt das Secret'} ${fehlend.join(' und ')}. ${gesehen} Die Namen müssen genau STEAM_API_KEY und STEAM_ID lauten.`,
+    }, 500);
+  }
+  if (/^[0-9A-F]{32}$/i.test(steamId) && /^\d{17}$/.test(schluessel)) {
+    return antwort({ fehler: 'STEAM_API_KEY und STEAM_ID sind vertauscht. Bitte die beiden Werte in Supabase tauschen.' }, 500);
+  }
+  if (!/^\d{17}$/.test(steamId)) {
+    return antwort({ fehler: `STEAM_ID muss deine 17-stellige Steam-ID sein (beginnt mit 7656…). Der eingetragene Wert hat ${steamId.length} Zeichen.` }, 500);
+  }
+  if (!/^[0-9A-F]{32}$/i.test(schluessel)) {
+    return antwort({ fehler: `STEAM_API_KEY sollte aus 32 Zeichen (0–9, A–F) bestehen. Der eingetragene Wert hat ${schluessel.length} Zeichen.` }, 500);
   }
 
   // Optional nur ein bestimmtes Konto zulassen
