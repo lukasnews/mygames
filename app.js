@@ -6,7 +6,7 @@
    eingerichtet – über Supabase zwischen Geräten abgeglichen.
    ========================================================= */
 
-const APP_VERSION = '2.4.2';
+const APP_VERSION = '2.4.3';
 const DATEN_KEY = 'spieleliste.daten.v1';
 const ANSICHT_KEY = 'spieleliste.ansicht.v1';
 const SYNC_KEY = 'spieleliste.sync.v1';
@@ -1829,8 +1829,14 @@ function geschmack() {
       anzahl.set(m, (anzahl.get(m) ?? 0) + 1);
     }
   }
+  // Sehr verbreitete Merkmale (z. B. „Indie“, „Einzelspieler“) sagen wenig über deinen Geschmack:
+  // je größer ihr Anteil an deiner Bibliothek, desto weniger zählen sie.
+  const spieleMitMerkmalen = daten.spiele.filter((s) => s.liste === 'bibliothek' && s.merkmale).length || 1;
   const ergebnis = new Map();
-  for (const [m, w] of summe) ergebnis.set(m, w / Math.sqrt(anzahl.get(m)));
+  for (const [m, w] of summe) {
+    const anteil = anzahl.get(m) / spieleMitMerkmalen;
+    ergebnis.set(m, (w / Math.sqrt(anzahl.get(m))) * (1 - anteil));
+  }
   for (const [m, v] of Object.entries(daten.steam.vorlieben)) {
     ergebnis.set(m, (ergebnis.get(m) ?? 0) + (v > 0 ? 5 : -100));
   }
@@ -1851,7 +1857,10 @@ function steamVorschlaege() {
       // Mindestens ein Genre, das du magst (Spielmodi wie „Einzelspieler“ oder „PvP“ allein reichen nicht)
       if (!m.some((x) => !RELEVANTE_KATEGORIE.test(x) && (g.get(x) ?? 0) > 0)) return null;
       const punkte = m.reduce((a, x) => a + (g.get(x) ?? 0), 0) + (k.preis?.rabatt ?? 0) / 40;
-      const grund = [...m].filter((x) => (g.get(x) ?? 0) > 0).sort((a, b) => g.get(b) - g.get(a)).slice(0, 3);
+      // Begründung: zuerst echte Genres, Spielmodi wie „Einzelspieler“ nur ergänzend
+      const istModus = (x) => RELEVANTE_KATEGORIE.test(x);
+      const grund = [...m].filter((x) => (g.get(x) ?? 0) > 0)
+        .sort((a, b) => istModus(a) - istModus(b) || g.get(b) - g.get(a)).slice(0, 3);
       return { ...k, punkte, grund };
     })
     .filter((k) => k && k.punkte > 0)
