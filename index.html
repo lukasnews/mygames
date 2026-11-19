@@ -44,7 +44,7 @@
     <aside class="tipp" id="tipp" hidden>
       <div class="tipp-kopf">
         <span class="tipp-symbol" aria-hidden="true">💡</span>
-        <h2 id="tipp-titel">Tipp</h2>
+        <h2><span id="tipp-titel">Tipp</span> <span class="tipp-auto" id="tipp-auto-hinweis" hidden>✨ automatisch</span></h2>
         <button class="icon-knopf" id="tipp-bearbeiten" aria-label="Tipp bearbeiten" title="Tipp bearbeiten">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 17.2V20h2.8l8.3-8.3-2.8-2.8L4 17.2zm13.7-7.6a1 1 0 0 0 0-1.4l-1.9-1.9a1 1 0 0 0-1.4 0l-1.4 1.4 2.8 2.8 1.9-1.9z"/></svg>
         </button>
@@ -156,6 +156,12 @@
       <label class="feld">Überschrift
         <input name="titel" maxlength="60" placeholder="z. B. Start-Tipp">
       </label>
+      <label class="schalter">
+        <input type="checkbox" name="auto">
+        <span class="schalter-bahn" aria-hidden="true"></span>
+        ✨ Automatisch aus deinen Spielen erstellen
+      </label>
+      <p class="leise klein" id="tipp-auto-erklaerung" hidden>Der Tipp wird bei jeder Änderung neu berechnet: zuerst angefangene Spiele, dann die nächste Fortsetzung einer Reihe, dann ein kurzes und ein großes offenes Story-Spiel in deiner Reihenfolge. Unten siehst du den aktuellen Vorschlag.</p>
       <label class="feld">Text
         <textarea name="text" rows="5" maxlength="600"></textarea>
       </label>

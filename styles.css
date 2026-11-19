@@ -364,3 +364,9 @@ a.klein-knopf { text-decoration: none; color: inherit; }
   text-decoration-thickness: 2px; text-underline-offset: 3px;
 }
 #tipp-hinzufuegen { margin: -6px 0 4px; }
+
+.tipp-auto {
+  display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 10px; vertical-align: 2px;
+  font-size: .72rem; font-weight: 600; border: 1px solid var(--tipp-rand);
+}
+#form-tipp textarea:disabled { opacity: .75; }

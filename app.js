@@ -6,7 +6,7 @@
    eingerichtet – über Supabase zwischen Geräten abgeglichen.
    ========================================================= */
 
-const APP_VERSION = '2.2.3';
+const APP_VERSION = '2.3.0';
 const DATEN_KEY = 'spieleliste.daten.v1';
 const ANSICHT_KEY = 'spieleliste.ansicht.v1';
 const SYNC_KEY = 'spieleliste.sync.v1';
@@ -38,10 +38,12 @@ function steamFunktion() {
 const STANDARD_TIPPS = {
   bibliothek: {
     titel: 'Start-Tipp',
+    auto: true,
     text: 'Metro 2033 Redux für kurz und spannend, The Witcher 3 für eine große Story.',
   },
   wunschliste: {
     titel: 'Kauf-Tipp',
+    auto: false,
     text: 'Zuerst The Last of Us Part I und Detroit: Become Human. Im Steam-Sale gibt es fast alles davon stark reduziert, also auf die Wunschliste setzen und abwarten.',
   },
 };
@@ -205,9 +207,15 @@ function normalisieren(roh, { startdaten = false } = {}) {
   const tipps = {};
   for (const liste of Object.keys(STANDARD_TIPPS)) {
     const t = roh?.tipps?.[liste];
-    tipps[liste] = t && typeof t === 'object'
-      ? { titel: String(t.titel ?? ''), text: String(t.text ?? ''), geaendert: zeitpunkt(t.geaendert) }
-      : { ...STANDARD_TIPPS[liste], geaendert: URALT };
+    const standard = STANDARD_TIPPS[liste];
+    if (t && typeof t === 'object') {
+      const text = String(t.text ?? '');
+      // Ältere Daten ohne „auto“: unveränderter Standard-Tipp übernimmt die neue Voreinstellung
+      const auto = typeof t.auto === 'boolean' ? t.auto : (text === standard.text && standard.auto);
+      tipps[liste] = { titel: String(t.titel ?? ''), text, auto, geaendert: zeitpunkt(t.geaendert) };
+    } else {
+      tipps[liste] = { ...standard, geaendert: URALT };
+    }
   }
 
   return {
@@ -582,28 +590,172 @@ function tippMitLinks(text) {
 
 function tippRendern() {
   const tipp = daten.tipps?.[ansicht.reiter];
-  const leer = !tipp || !(tipp.titel.trim() || tipp.text.trim());
+  const leer = !tipp || !(tipp.auto || tipp.titel.trim() || tipp.text.trim());
   $('#tipp').hidden = leer;
   $('#tipp-hinzufuegen').hidden = !leer;
   if (leer) return;
   $('#tipp-titel').textContent = tipp.titel.trim() || 'Tipp';
-  $('#tipp-text').innerHTML = tippMitLinks(tipp.text.trim());
+  $('#tipp-auto-hinweis').hidden = !tipp.auto;
+  const text = tipp.auto ? autoTipp(ansicht.reiter) : tipp.text.trim();
+  $('#tipp-text').innerHTML = tippMitLinks(text);
 }
+
+/* ---------- Automatischer Tipp ---------- */
+
+// „Ca. 10 Std.“, „Nur Hauptstory: ca. 50 Std.“ → 10 bzw. 50
+function geschaetzteStunden(s) {
+  const m = String(s.beschreibung).match(/ca\.\s*(\d+(?:[.,]\d+)?)\s*(?:Std|h\b)/i);
+  return m ? parseFloat(m[1].replace(',', '.')) : null;
+}
+
+// Gemeinsamer Schlüssel für Spiele einer Reihe: „Dishonored“, „Dishonored 2“ → „dishonored“
+function serienSchluessel(name) {
+  const woerter = fuerSuche(name).replace(/[^a-z0-9 ]+/g, ' ').trim().split(/\s+/);
+  const erstes = woerter[0] || '';
+  return ['the', 'a', 'an'].includes(erstes) || erstes.length < 4 ? woerter.slice(0, 2).join(' ') : erstes;
+}
+
+function namenListe(spiele) {
+  const n = spiele.map((s) => s.name);
+  return n.length > 1 ? `${n.slice(0, -1).join(', ')} und ${n[n.length - 1]}` : n[0];
+}
+
+function autoTipp(liste) {
+  return liste === 'wunschliste' ? autoKaufTipp() : autoStartTipp();
+}
+
+function autoStartTipp() {
+  const katIndex = new Map(daten.kategorien.map((k, i) => [k.name, i]));
+  const ordnung = (a, b) => (katIndex.get(a.kategorie) ?? 99) - (katIndex.get(b.kategorie) ?? 99) || a.reihenfolge - b.reihenfolge;
+  const bib = daten.spiele.filter((s) => s.liste === 'bibliothek').sort(ordnung);
+  const teile = [];
+  const erwaehnt = new Set();
+
+  // 1. Weiterspielen
+  const dabei = bib.filter((s) => s.status === 'angefangen').sort((a, b) => b.geaendert.localeCompare(a.geaendert)).slice(0, 2);
+  if (dabei.length === 1) {
+    teile.push(`Weiterspielen: ${dabei[0].name}${dabei[0].spielzeit ? ` (bisher ${dabei[0].spielzeit})` : ''}.`);
+  } else if (dabei.length > 1) {
+    teile.push(`Weiterspielen: ${namenListe(dabei)}.`);
+  }
+  dabei.forEach((s) => erwaehnt.add(s.id));
+
+  // Reihen innerhalb einer Kategorie
+  const reihen = new Map();
+  for (const s of bib) {
+    const k = s.kategorie + '|' + serienSchluessel(s.name);
+    if (!reihen.has(k)) reihen.set(k, []);
+    reihen.get(k).push(s);
+  }
+  const blockiert = new Set();  // Fortsetzungen, deren Vorgänger noch nicht erledigt ist
+  let fortsetzung = null;
+  for (const teil of reihen.values()) {
+    if (teil.length < 2) continue;
+    teil.sort((a, b) => a.reihenfolge - b.reihenfolge);
+    let offenerVorgaenger = false;
+    for (const s of teil) {
+      if (offenerVorgaenger) blockiert.add(s.id);
+      if (s.status === 'offen' || s.status === 'angefangen') offenerVorgaenger = true;
+    }
+    // 2. Reihe fortsetzen: nächstes offenes Spiel nach dem zuletzt durchgespielten
+    const durch = teil.filter((s) => s.status === 'durchgespielt');
+    if (!durch.length) continue;
+    const letztes = durch[durch.length - 1];
+    const naechstes = teil.slice(teil.indexOf(letztes) + 1).find((s) => s.status === 'offen');
+    if (naechstes && !teil.some((s) => s.status === 'angefangen')) {
+      const zeit = letztes.durchgespieltAm || letztes.geaendert;
+      if (!fortsetzung || zeit > fortsetzung.zeit) fortsetzung = { vorher: letztes, naechstes, zeit };
+    }
+  }
+  if (fortsetzung) {
+    teile.push(`Nach ${fortsetzung.vorher.name} geht es weiter mit ${fortsetzung.naechstes.name}.`);
+    erwaehnt.add(fortsetzung.naechstes.id);
+  }
+
+  // 3. Neu anfangen: kurz und groß aus dem Story-Wunsch (ohne reine Koop-Spiele)
+  const kandidaten = bib.filter((s) => s.status === 'offen' && !erwaehnt.has(s.id) && !blockiert.has(s.id) &&
+    kategorieVon(s.kategorie)?.bereich === 'Story-Wunsch' && !/koop/i.test(s.kategorie));
+  const mitDauer = kandidaten.map((s) => ({ s, h: geschaetzteStunden(s) })).filter((x) => x.h);
+  const kurz = mitDauer.find((x) => x.h <= 12);
+  const gross = mitDauer.find((x) => x.h >= 20 && x.s !== kurz?.s) || mitDauer.find((x) => x.h >= 15 && x.s !== kurz?.s);
+  const dauer = (x) => `ca. ${String(x.h).replace('.', ',')} Std.`;
+  const neu = teile.length ? 'Neu anfangen: ' : '';
+  if (kurz && gross) {
+    teile.push(`${neu}${kurz.s.name} für kurz und spannend (${dauer(kurz)}), ${gross.s.name} für eine große Story (${dauer(gross)}).`);
+  } else if (kurz || gross) {
+    const x = kurz || gross;
+    teile.push(`${neu}${x.s.name} (${dauer(x)}).`);
+  } else if (!teile.length && kandidaten.length) {
+    teile.push(`Als Nächstes: ${kandidaten[0].name}.`);
+  }
+
+  if (!teile.length) {
+    return 'Alles aus deinem Story-Wunsch ist erledigt – stark! Schau in die Wunschliste oder in „Für andere Laune“.';
+  }
+  return teile.join(' ');
+}
+
+function autoKaufTipp() {
+  const katIndex = new Map(daten.kategorien.map((k, i) => [k.name, i]));
+  const wunsch = daten.spiele.filter((s) => s.liste === 'wunschliste')
+    .sort((a, b) => (katIndex.get(a.kategorie) ?? 99) - (katIndex.get(b.kategorie) ?? 99) || a.reihenfolge - b.reihenfolge);
+  if (!wunsch.length) return 'Deine Wunschliste ist leer. Mit + fügst du Spiele hinzu, die du dir kaufen könntest.';
+  const teile = [];
+  // Fortsetzung einer Reihe, die du in der Bibliothek schon durchgespielt hast
+  // (das zuletzt durchgespielte Spiel zählt zuerst)
+  const durch = daten.spiele.filter((s) => s.liste === 'bibliothek' && s.status === 'durchgespielt')
+    .sort((a, b) => (b.durchgespieltAm || b.geaendert).localeCompare(a.durchgespieltAm || a.geaendert));
+  let passend = null;
+  for (const d of durch) {
+    const w = wunsch.find((x) => serienSchluessel(x.name) === serienSchluessel(d.name));
+    if (w) { passend = { w, v: d }; break; }
+  }
+  if (passend) teile.push(`Da du ${passend.v.name} durchgespielt hast: ${passend.w.name} setzt die Reihe fort.`);
+  // Pro Reihe nur ein Spiel empfehlen (nicht Teil 1 und Teil 2 gleichzeitig)
+  const reihen = new Set(passend ? [serienSchluessel(passend.w.name)] : []);
+  const zuerst = [];
+  for (const s of wunsch) {
+    const k = serienSchluessel(s.name);
+    if (reihen.has(k)) continue;
+    reihen.add(k);
+    zuerst.push(s);
+    if (zuerst.length === 2) break;
+  }
+  if (zuerst.length) teile.push(`${passend ? 'Außerdem lohnen sich' : 'Zuerst'} ${namenListe(zuerst)}.`);
+  teile.push('Im Steam-Sale gibt es fast alles stark reduziert – also auf die Steam-Wunschliste setzen und abwarten.');
+  return teile.join(' ');
+}
+
+let tippManuellerText = '';
 
 function tippDialogOeffnen() {
   const tipp = daten.tipps[ansicht.reiter];
   const standard = STANDARD_TIPPS[ansicht.reiter];
   const form = $('#form-tipp');
   form.titel.value = tipp.titel;
-  form.text.value = tipp.text;
+  tippManuellerText = tipp.text;
+  form.auto.checked = Boolean(tipp.auto);
+  $('#tipp-auto-erklaerung').textContent = ansicht.reiter === 'wunschliste'
+    ? 'Der Tipp wird bei jeder Änderung neu berechnet: zuerst die Fortsetzung einer Reihe, die du zuletzt durchgespielt hast, dann die ersten Spiele deiner Wunschliste (pro Reihe nur eins). Unten siehst du den aktuellen Vorschlag.'
+    : 'Der Tipp wird bei jeder Änderung neu berechnet: zuerst angefangene Spiele, dann die nächste Fortsetzung einer Reihe, dann ein kurzes und ein großes offenes Story-Spiel in deiner Reihenfolge. Unten siehst du den aktuellen Vorschlag.';
+  tippAutoUmschalten();
   $('#tipp-dialog-titel').textContent = `Tipp für „${ansicht.reiter === 'bibliothek' ? 'Bibliothek' : 'Wunschliste'}“`;
-  $('#tipp-standard').hidden = tipp.titel === standard.titel && tipp.text === standard.text;
-  $('#tipp-entfernen').hidden = !(tipp.titel || tipp.text);
+  $('#tipp-standard').hidden = tipp.titel === standard.titel && tipp.text === standard.text && Boolean(tipp.auto) === standard.auto;
+  $('#tipp-entfernen').hidden = !(tipp.auto || tipp.titel || tipp.text);
   $('#dlg-tipp').showModal();
 }
 
-function tippSetzen(titel, text) {
-  daten.tipps[ansicht.reiter] = { titel: titel.trim(), text: text.trim(), geaendert: jetzt() };
+// Automatisch an: Vorschau im Textfeld, Bearbeiten gesperrt. Aus: eigener Text zurück.
+function tippAutoUmschalten() {
+  const form = $('#form-tipp');
+  const auto = form.auto.checked;
+  form.text.disabled = auto;
+  form.text.value = auto ? autoTipp(ansicht.reiter) : (tippManuellerText || form.text.value);
+  $('#tipp-auto-erklaerung').hidden = !auto;
+}
+
+function tippSetzen(titel, text, auto = false) {
+  daten.tipps[ansicht.reiter] = { titel: titel.trim(), text: text.trim(), auto, geaendert: jetzt() };
   speichern();
   rendern();
 }
@@ -611,6 +763,11 @@ function tippSetzen(titel, text) {
 function tippEinrichten() {
   $('#tipp-bearbeiten').addEventListener('click', tippDialogOeffnen);
   $('#tipp-hinzufuegen').addEventListener('click', tippDialogOeffnen);
+  $('#form-tipp').auto.addEventListener('change', (e) => {
+    const form = $('#form-tipp');
+    if (e.target.checked) tippManuellerText = form.text.value;
+    tippAutoUmschalten();
+  });
   $('#tipp-text').addEventListener('click', (e) => {
     const knopf = e.target.closest('[data-spiel-id]');
     if (!knopf) return;
@@ -624,20 +781,26 @@ function tippEinrichten() {
   });
   $('#form-tipp').addEventListener('submit', (e) => {
     e.preventDefault();
-    tippSetzen(e.target.titel.value, e.target.text.value);
+    const f = e.target;
+    const auto = f.auto.checked;
+    tippSetzen(f.titel.value, auto ? tippManuellerText : f.text.value, auto);
     $('#dlg-tipp').close();
-    zeigeHinweis('Tipp gespeichert');
+    zeigeHinweis(auto ? 'Tipp wird jetzt automatisch erstellt' : 'Tipp gespeichert');
   });
   $('#tipp-entfernen').addEventListener('click', () => {
     sicherungMachen();
-    tippSetzen('', '');
+    tippSetzen('', '', false);
     $('#dlg-tipp').close();
     zeigeHinweis('Tipp entfernt', true);
   });
   $('#tipp-standard').addEventListener('click', () => {
     const f = $('#form-tipp');
-    f.titel.value = STANDARD_TIPPS[ansicht.reiter].titel;
-    f.text.value = STANDARD_TIPPS[ansicht.reiter].text;
+    const standard = STANDARD_TIPPS[ansicht.reiter];
+    f.titel.value = standard.titel;
+    tippManuellerText = standard.text;
+    f.text.value = standard.text;
+    f.auto.checked = standard.auto;
+    tippAutoUmschalten();
   });
 }
 
