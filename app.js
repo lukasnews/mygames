@@ -6,7 +6,7 @@
    eingerichtet – über Supabase zwischen Geräten abgeglichen.
    ========================================================= */
 
-const APP_VERSION = '2.7.1';
+const APP_VERSION = '2.7.2';
 const DATEN_KEY = 'spieleliste.daten.v1';
 const ANSICHT_KEY = 'spieleliste.ansicht.v1';
 const SYNC_KEY = 'spieleliste.sync.v1';
@@ -712,6 +712,28 @@ function autoTipp(liste) {
 function nurAngetestet(s) {
   return s.status === 'angefangen' && spielzeitMinuten(s.spielzeit) < 60 &&
     !(s.zuletztGespielt && s.zuletztGespielt >= vorEinemMonat());
+}
+
+// Einmaliges Aufräumen: Beschreibungen aus dem ersten Import, die sich auf den damaligen Spielstand bezogen.
+// Ersetzt wird nur, wenn der Text noch unverändert ist (eigene Änderungen bleiben erhalten).
+const TEXT_AUFRAEUMEN = [
+  { name: "Little Nightmares II", alt: "Düsterer Grusel-Plattformer mit Rätseln, ganz ohne Worte erzählt. Mit 8 Std. vermutlich schon durch (das Spiel dauert ca. 5 Std.).", neu: "Düsterer Grusel-Plattformer mit Rätseln, ganz ohne Worte erzählt. Ca. 5 Std." },
+  { name: "Bramble: The Mountain King", alt: "Düsteres Märchen nach nordischen Sagen, Plattformer mit Bossen. Mit 5,2 Std. vermutlich fast durch.", neu: "Düsteres Märchen nach nordischen Sagen, Plattformer mit Bossen. Ca. 6 Std." },
+  { name: "It Takes Two", alt: "Ein Paar wird in Puppen verwandelt und muss zusammenarbeiten. Jedes Level hat eine neue Spielidee. Mit 18 Std. wohl schon durch.", neu: "Ein Paar wird in Puppen verwandelt und muss zusammenarbeiten. Jedes Level hat eine neue Spielidee. Nur zu zweit. Ca. 12 Std." },
+  { name: "Assassin's Creed IV Black Flag", alt: "Piratenleben in der Karibik mit eigenem Schiff. Kennst du schon gut.", neu: "Piratenleben in der Karibik mit eigenem Schiff: Seeschlachten, Entern und eine große offene Welt." },
+  { name: "Grand Theft Auto V", alt: "Kennst du schon bestens.", neu: "Open-World-Krimi in Los Santos mit drei Hauptfiguren, Raubzügen und viel Freiheit. Dazu ein großer Online-Modus." },
+  { name: "Satisfactory", alt: "Fabriken auf einem fremden Planeten bauen, dein Lieblingsspiel.", neu: "Fabriken auf einem fremden Planeten bauen und immer weiter automatisieren, auch im Koop." },
+  { name: "Farming Simulator 19", alt: "Deinen meistgespielten Teil kennst du ja.", neu: "Landwirtschafts-Simulation mit großen Maschinen, Feldern und Tieren, auch im Koop." },
+];
+
+function beschreibungenAufraeumen() {
+  let geaendert = 0;
+  for (const s of daten.spiele) {
+    const t = TEXT_AUFRAEUMEN.find((x) => x.name === s.name && x.alt === s.beschreibung);
+    if (t) { s.beschreibung = t.neu; beruehren(s); geaendert++; }
+  }
+  if (geaendert) speichern();
+  return geaendert;
 }
 
 // Unter 30 Minuten Spielzeit war es meist nur ein Test, ob das Spiel läuft
@@ -2564,6 +2586,7 @@ async function start() {
   bedienungEinrichten();
   try {
     await laden();
+    beschreibungenAufraeumen();
     statusAusSteamKorrigieren();
     rendern();
   } catch (e) {

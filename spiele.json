@@ -136,7 +136,7 @@
   },
   {
     "name": "Little Nightmares II",
-    "beschreibung": "Düsterer Grusel-Plattformer mit Rätseln, ganz ohne Worte erzählt. Mit 8 Std. vermutlich schon durch (das Spiel dauert ca. 5 Std.).",
+    "beschreibung": "Düsterer Grusel-Plattformer mit Rätseln, ganz ohne Worte erzählt. Ca. 5 Std.",
     "spielzeit": "8 h",
     "liste": "bibliothek",
     "kategorie": "Gut, mit kleinen Abstrichen",
@@ -352,7 +352,7 @@
   },
   {
     "name": "Bramble: The Mountain King",
-    "beschreibung": "Düsteres Märchen nach nordischen Sagen, Plattformer mit Bossen. Mit 5,2 Std. vermutlich fast durch.",
+    "beschreibung": "Düsteres Märchen nach nordischen Sagen, Plattformer mit Bossen. Ca. 6 Std.",
     "spielzeit": "5,2 h",
     "liste": "bibliothek",
     "kategorie": "Kurz, ruhig, Rätsel",
@@ -415,7 +415,7 @@
   },
   {
     "name": "It Takes Two",
-    "beschreibung": "Ein Paar wird in Puppen verwandelt und muss zusammenarbeiten. Jedes Level hat eine neue Spielidee. Mit 18 Std. wohl schon durch.",
+    "beschreibung": "Ein Paar wird in Puppen verwandelt und muss zusammenarbeiten. Jedes Level hat eine neue Spielidee. Nur zu zweit. Ca. 12 Std.",
     "spielzeit": "18 h",
     "liste": "bibliothek",
     "kategorie": "Nur Koop",
@@ -478,7 +478,7 @@
   },
   {
     "name": "Assassin's Creed IV Black Flag",
-    "beschreibung": "Piratenleben in der Karibik mit eigenem Schiff. Kennst du schon gut.",
+    "beschreibung": "Piratenleben in der Karibik mit eigenem Schiff: Seeschlachten, Entern und eine große offene Welt.",
     "spielzeit": "153,8 h",
     "liste": "bibliothek",
     "kategorie": "Open World & Herausforderung",
@@ -487,7 +487,7 @@
   },
   {
     "name": "Grand Theft Auto V",
-    "beschreibung": "Kennst du schon bestens.",
+    "beschreibung": "Open-World-Krimi in Los Santos mit drei Hauptfiguren, Raubzügen und viel Freiheit. Dazu ein großer Online-Modus.",
     "spielzeit": "641,4 h",
     "liste": "bibliothek",
     "kategorie": "Open World & Herausforderung",
@@ -514,7 +514,7 @@
   },
   {
     "name": "Satisfactory",
-    "beschreibung": "Fabriken auf einem fremden Planeten bauen, dein Lieblingsspiel.",
+    "beschreibung": "Fabriken auf einem fremden Planeten bauen und immer weiter automatisieren, auch im Koop.",
     "spielzeit": "466,8 h",
     "liste": "bibliothek",
     "kategorie": "Bauen & Automatisieren",
@@ -595,7 +595,7 @@
   },
   {
     "name": "Farming Simulator 19",
-    "beschreibung": "Deinen meistgespielten Teil kennst du ja.",
+    "beschreibung": "Landwirtschafts-Simulation mit großen Maschinen, Feldern und Tieren, auch im Koop.",
     "spielzeit": "52,4 h",
     "liste": "bibliothek",
     "kategorie": "Simulation & Fahren",
