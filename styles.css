@@ -402,3 +402,10 @@ a.klein-knopf { text-decoration: none; color: inherit; }
 .zuordnung-box > summary h3::after { content: " ▾"; color: var(--text-leise); }
 .zuordnung-box[open] > summary h3::after { content: " ▴"; }
 .zuordnung-box > p, .zuordnung-box > ul { margin-top: 6px; }
+
+/* Wunschliste: Angebote und Vorschläge */
+.kategorie.angebot { border-color: color-mix(in srgb, var(--gefahr) 40%, var(--rand)); }
+.kategorie.vorschlaege { border-style: dashed; }
+.spiel.vorschlag { background: color-mix(in srgb, var(--akzent-weich) 35%, var(--flaeche)); }
+.spiel-beschr.kurz { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.mini-sale { color: var(--gefahr); font-weight: 700; font-size: .85rem; white-space: nowrap; }

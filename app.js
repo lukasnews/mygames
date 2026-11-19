@@ -6,7 +6,7 @@
    eingerichtet – über Supabase zwischen Geräten abgeglichen.
    ========================================================= */
 
-const APP_VERSION = '2.4.3';
+const APP_VERSION = '2.5.0';
 const DATEN_KEY = 'spieleliste.daten.v1';
 const ANSICHT_KEY = 'spieleliste.ansicht.v1';
 const SYNC_KEY = 'spieleliste.sync.v1';
@@ -477,6 +477,7 @@ function sortieren(spiele) {
     case 'bewertung': return kopie.sort((a, b) => b.bewertung - a.bewertung || nachReihe(a, b));
     case 'spielzeit': return kopie.sort((a, b) => spielzeitMinuten(b.spielzeit) - spielzeitMinuten(a.spielzeit) || nachReihe(a, b));
     case 'name': return kopie.sort((a, b) => a.name.localeCompare(b.name, 'de'));
+    case 'rabatt': return kopie.sort((a, b) => (b.preis?.rabatt ?? 0) - (a.preis?.rabatt ?? 0) || nachReihe(a, b));
     default: return kopie.sort(nachReihe);
   }
 }
@@ -512,7 +513,7 @@ function spielHtml(s, kontext = {}) {
     return `
       <article class="spiel kompakt" data-id="${esc(s.id)}">
         <button class="spiel-name-knopf" data-aktion="aufklappen" aria-expanded="false">
-          <span>${esc(s.name)}</span>${s.bewertung ? `<span class="mini-stern" aria-label="${s.bewertung} Sterne">★${s.bewertung}</span>` : ''}
+          <span>${esc(s.name)}</span>${s.bewertung ? `<span class="mini-stern" aria-label="${s.bewertung} Sterne">★${s.bewertung}</span>` : ''}${s.liste === 'wunschliste' && s.preis?.rabatt > 0 ? `<span class="mini-sale">−${s.preis.rabatt} %</span>` : ''}
         </button>
         ${hauptAktionHtml(s)}
       </article>`;
@@ -799,7 +800,12 @@ function autoKaufTipp() {
     if (zuerst.length === 2) break;
   }
   if (zuerst.length) teile.push(`${passend ? 'Außerdem lohnen sich' : 'Zuerst'} ${namenListe(zuerst)}.`);
-  teile.push('Im Steam-Sale gibt es fast alles stark reduziert – also auf die Steam-Wunschliste setzen und abwarten.');
+  const bestes = wunsch.filter((s) => s.preis?.rabatt >= 30).sort((a, b) => b.preis.rabatt - a.preis.rabatt)[0];
+  if (bestes) {
+    teile.unshift(`Gerade im Angebot: ${bestes.name} für ${geldText(bestes.preis.final, bestes.preis.waehrung)} (−${bestes.preis.rabatt} %).`);
+  } else {
+    teile.push('Im Steam-Sale gibt es fast alles stark reduziert – also auf die Steam-Wunschliste setzen und abwarten.');
+  }
   return teile.join(' ');
 }
 
@@ -901,7 +907,9 @@ function rendern() {
   $('#erledigte-aus').checked = ansicht.erledigteAus;
   $('#wuerfel-knopf').hidden = !istBib || reihenfolgeModus;
   $('#sortierung option[value="status"]').hidden = !istBib;
+  $('#sortierung option[value="rabatt"]').hidden = istBib;
   if (!istBib && ansicht.sortierung === 'status') ansicht.sortierung = 'eigene';
+  if (istBib && ansicht.sortierung === 'rabatt') ansicht.sortierung = 'eigene';
   $('#sortierung').value = ansicht.sortierung;
   $('#filter-zuruecksetzen').hidden = !filterAktiv() || reihenfolgeModus;
   $('#sortierung').disabled = reihenfolgeModus;
@@ -925,6 +933,9 @@ function rendern() {
   let html = '';
   let treffer = 0;
   if (istBib && !aktiv && !reihenfolgeModus) html += geradeDabeiHtml();
+  const mitExtras = !istBib && !aktiv && !reihenfolgeModus;
+  const angebote = mitExtras ? angeboteHtml() : '';
+  if (angebote) html += angebote + '<div class="bereich"><h2>Deine Wunschliste</h2></div>';
   for (const bereich of BEREICHE_JE_LISTE[ansicht.reiter]) {
     let teil = '';
     for (const kat of daten.kategorien.filter((k) => k.bereich === bereich)) {
@@ -944,6 +955,7 @@ function rendern() {
       ? '<p class="leer">Keine Spiele gefunden.<br><button class="knopf" data-filter-zuruecksetzen>Filter zurücksetzen</button></p>'
       : '<p class="leer">Hier ist noch nichts.<br>Tippe auf <b>+</b>, um ein Spiel hinzuzufügen.</p>';
   }
+  if (mitExtras) html += vorschlaegeHtml();
   $('#liste').innerHTML = html;
 }
 
@@ -2014,19 +2026,9 @@ function steamEinrichten() {
         break;
       }
       case 'merken': {
-        const v = st.kandidaten.find((x) => x.appid === appid);
-        if (!v) return;
-        if (!kategorieVon(VORSCHLAG_KATEGORIE)) {
-          daten.kategorien.push({ name: VORSCHLAG_KATEGORIE, info: 'Passen zu dem, was du magst', bereich: 'Wunschliste', liste: 'wunschliste' });
-        }
-        daten.spiele.push({
-          id: neueId(), name: v.name, beschreibung: v.beschreibung || '', spielzeit: null,
-          liste: 'wunschliste', kategorie: VORSCHLAG_KATEGORIE, status: 'offen', notiz: '', bewertung: 0,
-          reihenfolge: naechsteReihenfolge(VORSCHLAG_KATEGORIE), steamAppId: v.appid, durchgespieltAm: null,
-          zuletztGespielt: null, merkmale: v.merkmale ?? null, preis: v.preis ? { ...v.preis, stand: st.letzterAbgleich } : null,
-          geaendert: jetzt(),
-        });
-        zeigeHinweis(`„${v.name}“ auf die Wunschliste gesetzt`);
+        const name = vorschlagMerken(appid);
+        if (!name) return;
+        zeigeHinweis(`„${name}“ auf die Wunschliste gesetzt`);
         break;
       }
       case 'zuordnen': {
@@ -2051,7 +2053,7 @@ function steamEinrichten() {
         daten.steam = { ...st, ohneSteam: [...new Set([...st.ohneSteam, k.dataset.id])], geaendert: jetzt() };
         break;
       case 'ignorieren':
-        daten.steam = { ...st, ignoriert: [...new Set([...st.ignoriert, appid])], geaendert: jetzt() };
+        steamIgnorieren(appid);
         break;
       case 'vorliebe': {
         const m = k.dataset.merkmal;
@@ -2066,6 +2068,90 @@ function steamEinrichten() {
     speichern();
     rendern();
     steamErgebnisAnzeigen();
+  });
+}
+
+/* ---------- Wunschliste: Angebote und Vorschläge direkt in der Liste ---------- */
+
+function angeboteHtml() {
+  const angebote = daten.spiele.filter((s) => s.liste === 'wunschliste' && s.preis?.rabatt > 0)
+    .sort((a, b) => b.preis.rabatt - a.preis.rabatt);
+  if (!angebote.length) return '';
+  const stand = angebote.map((s) => s.preis.stand).filter(Boolean).sort().pop();
+  return `
+    <div class="bereich"><h2>🔥 Gerade im Angebot</h2><p>${stand ? `Steam-Preise vom ${esc(new Date(stand).toLocaleDateString('de-DE'))}` : 'Steam-Preise'}, größter Rabatt zuerst</p></div>
+    <div class="kategorie angebot">
+      <div class="kat-spiele">${angebote.map((s) => spielHtml(s)).join('')}</div>
+    </div>`;
+}
+
+function vorschlagHtml(k) {
+  const grund = k.grund?.length ? ` · passt zu: ${k.grund.join(', ')}` : '';
+  return `
+    <article class="spiel vorschlag" data-appid="${k.appid}">
+      <div class="spiel-kopf"><div class="spiel-name">${esc(k.name)}</div></div>
+      ${k.beschreibung ? `<p class="spiel-beschr kurz">${esc(k.beschreibung)}</p>` : ''}
+      <div class="spiel-meta">${k.preis ? `<span>${preisHtml(k.preis)}</span>` : ''}<span>${esc(k.quelle || 'Steam')}${esc(grund)}</span>
+        <a class="steam-link" href="https://store.steampowered.com/app/${k.appid}/" target="_blank" rel="noopener" aria-label="${esc(k.name)} auf Steam ansehen">Steam ↗</a>
+      </div>
+      <div class="spiel-aktionen">
+        <button class="klein-knopf haupt" data-vorschlag="merken">+ Wunschliste</button>
+        <button class="klein-knopf" data-vorschlag="ignorieren">Kein Interesse</button>
+      </div>
+    </article>`;
+}
+
+function vorschlaegeHtml() {
+  if (!daten.steam.letzterAbgleich) return '';
+  const liste = steamVorschlaege();
+  if (!liste.length) return '';
+  return `
+    <div class="bereich"><h2>✨ Vorschläge für dich</h2><p>Aus dem Steam-Abgleich vom ${esc(new Date(daten.steam.letzterAbgleich).toLocaleDateString('de-DE'))}, passend zu dem, was du magst</p></div>
+    <div class="kategorie vorschlaege">
+      <div class="kat-spiele">${liste.map(vorschlagHtml).join('')}</div>
+    </div>`;
+}
+
+// Vorschlag auf die Wunschliste setzen (aus der Liste oder dem Abgleich-Fenster)
+function vorschlagMerken(appid) {
+  const st = daten.steam;
+  const v = st.kandidaten.find((x) => x.appid === appid);
+  if (!v || daten.spiele.some((s) => s.steamAppId === appid)) return null;
+  if (!kategorieVon(VORSCHLAG_KATEGORIE)) {
+    daten.kategorien.push({ name: VORSCHLAG_KATEGORIE, info: 'Passen zu dem, was du magst', bereich: 'Wunschliste', liste: 'wunschliste' });
+  }
+  daten.spiele.push({
+    id: neueId(), name: v.name, beschreibung: v.beschreibung || '', spielzeit: null,
+    liste: 'wunschliste', kategorie: VORSCHLAG_KATEGORIE, status: 'offen', notiz: '', bewertung: 0,
+    reihenfolge: naechsteReihenfolge(VORSCHLAG_KATEGORIE), steamAppId: v.appid, durchgespieltAm: null,
+    zuletztGespielt: null, merkmale: v.merkmale ?? null, preis: v.preis ? { ...v.preis, stand: st.letzterAbgleich } : null,
+    geaendert: jetzt(),
+  });
+  return v.name;
+}
+
+function steamIgnorieren(appid) {
+  const st = daten.steam;
+  daten.steam = { ...st, ignoriert: [...new Set([...st.ignoriert, appid])], geaendert: jetzt() };
+}
+
+function vorschlagListeEinrichten() {
+  $('#liste').addEventListener('click', (e) => {
+    const knopf = e.target.closest('[data-vorschlag]');
+    if (!knopf) return;
+    const appid = Number(knopf.closest('.vorschlag')?.dataset.appid);
+    if (!appid) return;
+    const name = daten.steam.kandidaten.find((x) => x.appid === appid)?.name ?? 'Spiel';
+    sicherungMachen();
+    if (knopf.dataset.vorschlag === 'merken') {
+      if (!vorschlagMerken(appid)) return;
+      zeigeHinweis(`„${name}“ auf die Wunschliste gesetzt`, true);
+    } else {
+      steamIgnorieren(appid);
+      zeigeHinweis(`„${name}“ wird nicht mehr vorgeschlagen`, true);
+    }
+    speichern();
+    rendern();
   });
 }
 
@@ -2304,6 +2390,7 @@ async function start() {
   syncDialogEinrichten();
   tippEinrichten();
   steamEinrichten();
+  vorschlagListeEinrichten();
   bedienungEinrichten();
   try {
     await laden();
