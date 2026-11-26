@@ -1,0 +1,45 @@
+# Hält das kostenlose Supabase-Projekt aktiv.
+# Supabase pausiert Gratis-Projekte nach etwa einer Woche ohne Zugriffe.
+# Diese Aufgabe fragt alle zwei Tage einmal die Datenbank ab (ohne Anmeldung –
+# die Zugriffsregeln liefern dabei nur eine leere Liste, es werden keine Daten gelesen).
+
+name: Supabase wach halten
+
+on:
+  schedule:
+    - cron: '23 5 */2 * *'   # alle 2 Tage um 05:23 UTC
+  workflow_dispatch:          # zum Testen: Actions → „Supabase wach halten“ → Run workflow
+
+permissions:
+  actions: write   # um diese Aufgabe aktiv zu halten (siehe letzter Schritt)
+  contents: read
+
+jobs:
+  anpingen:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      # Öffentliche Werte aus config.js (der Publishable Key ist für den Browser gedacht)
+      SUPABASE_URL: https://hxstggbkslefostpxylx.supabase.co
+      SUPABASE_KEY: sb_publishable_go8VuTL91IRl12sEar1jfw_ZM7-S4d-
+    steps:
+      - name: Datenbank anfragen
+        run: |
+          for versuch in 1 2 3; do
+            status=$(curl -s -o antwort.txt -w '%{http_code}' \
+              "$SUPABASE_URL/rest/v1/spielelisten?select=user_id&limit=1" \
+              -H "apikey: $SUPABASE_KEY" -H "Authorization: Bearer $SUPABASE_KEY")
+            echo "Versuch $versuch: HTTP $status – $(head -c 200 antwort.txt)"
+            if [ "$status" = "200" ]; then exit 0; fi
+            sleep 20
+          done
+          echo "::error::Supabase antwortet nicht mit 200. Ist das Projekt pausiert? Im Supabase-Dashboard auf „Restore“ klicken."
+          exit 1
+
+      # GitHub schaltet geplante Aufgaben in Repos ohne Änderungen nach 60 Tagen ab.
+      # Das erneute Aktivieren über die API setzt diese Frist zurück.
+      - name: Aufgabe aktiv halten
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/supabase-wachhalten.yml/enable" || true
